@@ -12,29 +12,28 @@ import static Database.DataBaseHandler.getDbConnection;
 public class UserController {
     public static boolean signUpUser(User user) {
         String insert = "INSERT INTO " + UserTable.TABLE_NAME + "(" +
-                UserTable.USER_ID + "," + UserTable.FIRST_NAME + "," +
-                UserTable.USERNAME + "," + UserTable.PHONE + "," +
+                UserTable.USER_ID + "," + UserTable.STATUS + ","+
+                UserTable.FIRST_NAME + "," + UserTable.USERNAME + "," +
                 UserTable.TIME_LAST_MESSAGE + ")" +
                 "VALUES(?,?,?,?,?)";
         try {
             PreparedStatement st = getDbConnection().prepareStatement(insert);
             st.setString(1, user.getUserId());
-            st.setString(2, user.getFirstName());
-            st.setString(3, user.getUsername());
-            st.setString(4, user.getPhone());
+            st.setString(2, user.getStatus());
+            st.setString(3, user.getFirstName());
+            st.setString(4, user.getUsername());
             st.setObject(5, user.getTimeLastMessage());
 
             st.executeUpdate();
             st.close();
         } catch (SQLIntegrityConstraintViolationException e) {
-            System.out.println("LOG: Пользователь уже существует(Возможно другая ошибка.)");
             return false;
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
             return false;
         }
 
-        System.out.println("LOG: Зарегистрирован новый пользователь " + user.getFirstName() + "(" + user.getUserId() + ")");
+        System.out.println("LOG: New user registered " + user.getFirstName() + "(" + user.getUserId() + ")");
         return true;
     }
 

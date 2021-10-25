@@ -1,6 +1,4 @@
 import Config.BotConfig;
-import Database.user.User;
-import static Database.user.UserController.*;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -22,7 +20,8 @@ public class DeliveryBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        BotController BOT = new BotController();
+        new BotController().getAnswer(update);
+        /*BotController BOT = new BotController();
         User u = new User();
         org.telegram.telegrambots.meta.api.objects.User m = update.getMessage().getFrom();
         u.setUserId(m.getId().toString());
@@ -34,8 +33,9 @@ public class DeliveryBot extends TelegramLongPollingBot {
         u.setRoom(123);
         updateUserDB(u);
         u = getUserById(u.getUserId());
-        System.out.println(u);
+        System.out.println(u);*/
     }
+
 }
 
 class BotInitialization {
@@ -44,7 +44,10 @@ class BotInitialization {
             try {
                 TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
                 botsApi.registerBot(new DeliveryBot()); // Запуск бота.
+
                 System.out.println("SUCCESSFUL CONNECTION WITH THE BOT");
+/*                User.userList = UserController.getUsers();*/
+
                 return;
             } catch (TelegramApiException e) {
                 e.printStackTrace();
