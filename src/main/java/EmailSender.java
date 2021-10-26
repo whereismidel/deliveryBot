@@ -6,6 +6,8 @@ import javax.mail.internet.MimeMessage;
 import java.util.Properties;
 
 public class EmailSender {
+
+
     public static boolean sendMail(String sendTo, String subject, String textMessage) {
         // Assuming you are sending email from through gmails smtp
         String host = "smtp.gmail.com";

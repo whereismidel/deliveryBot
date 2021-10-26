@@ -202,7 +202,7 @@ public class BotController extends DeliveryBot {
                 requestRegistrationData(update, user);
             } else if (text.equalsIgnoreCase("меню") || text.equalsIgnoreCase("/menu") || text.equalsIgnoreCase("/start")) {
                 getMenu(update);
-            } else {
+            } else{
                 sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
             }
         }
@@ -368,32 +368,41 @@ public class BotController extends DeliveryBot {
                         break;
                     }
                     case "Registration(Email)": {
-                        if (user.getTemp().matches("^(\\d)+\\w@stud.nau.edu.ua$")) {
+                        if (user.getTemp().matches("^(\\d)+\\w@stud.nau.edu.ua$") && user.getTemp().length()<45) {
                             user.setEmail(user.getTemp());
                             user.setStage("Registration(SendEmailConfirmCode)");
                             requestRegistrationData(update, user);
                         } else {
                             sendHTMLMessage(update, "Введите вашу e-mail почту в домене\n" +
-                                    "<b>@stud.nau.edu.ua</b>.\n" +
-                                    "На следующем шаге её нужно будет подтвердить...\n\n" +
+                                    "<b>@stud.nau.edu.ua</b>.");
+                            removeKeyboard(update,"На следующем шаге её нужно будет подтвердить...\n\n" +
                                     "Если почта отсутствует - сообщите @Midell");
                         }
                         break;
                     }
                     case "Registration(SendEmailConfirmCode)": {
-                        String verificationCode = Controller.getRandomCode();
-                        System.out.println("\t Process: Sending email to " + user.getEmail());
+
                         sendTextMessage(update, "Отправка письма.\n" +
                                 "Подождите несколько секунд...");
 
-                        if (EmailSender.sendMail(user.getEmail(), "Код подтверждения", "Твой код для подтверждения почты: " + verificationCode)) {
-                            System.out.println("\t\t\t  Successful submission.");
-                        } else {
-                            System.out.println("\t\t\t  Submission error.");
+                        if (!(user.getEmail().split(":").length>1)) {
+                            String verificationCode = Controller.getRandomCode();
+                            String email = user.getEmail();
+                            user.setEmail(user.getEmail() + ":" + verificationCode);
+                            System.out.println("\t Process: Sending email to " + user.getEmail());
+                            Runnable task = () -> {
+                                if (EmailSender.sendMail(email, "Код подтверждения", "Твой код для подтверждения почты: " + verificationCode)) {
+                                    System.out.println("\t\t\t  Successful submission.");
+                                    user.setEmail(user.getEmail() + ":" + verificationCode);
+                                    user.setStage("Registration(GetEmailConfirmCode)");
+                                    requestRegistrationData(update, user);
+                                } else {
+                                    System.out.println("\t\t\t  Submission error.");
+                                    sendTextMessage(update, "Ошибка отправки: возможно такой почты не существует");
+                                }
+                            };
+                            new Thread(task).start();
                         }
-                        user.setStage("Registration(GetEmailConfirmCode)");
-                        user.setEmail(user.getEmail() + ":" + verificationCode);
-                        requestRegistrationData(update, user);
                         break;
                     }
                     case "Registration(GetEmailConfirmCode)": {
@@ -445,8 +454,6 @@ public class BotController extends DeliveryBot {
                         if (user.getTemp().contains("DORM")) {
                             text = user.getTemp().replace("DORM", "");
                             user.setDormitory(Integer.parseInt(text));
-                            sendTextMessage(update, "Вы успешно зарегистрировались.");
-                            getMenu(update);
                         }
                         if (user.getDormitory() == 0) {
                             sendTextMessage(update, "\u2B06Выберите ваше общежитие\u2B06");
@@ -458,6 +465,8 @@ public class BotController extends DeliveryBot {
                             user.setTemp("NONE");
                             user.setStage("NONE");
                             user.setStatus("ACTIVE");
+                            sendTextMessage(update, "Вы успешно зарегистрировались.");
+                            getMenu(update);
 
                         } else {
                             sendTextMessage(update, "Введите комнату:");

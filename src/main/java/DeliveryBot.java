@@ -24,6 +24,9 @@ public class DeliveryBot extends TelegramLongPollingBot {
             new BotController().getCallbackAnswer(update);
         }else {
             if (update.hasMessage()) {
+                if (!update.getMessage().hasText()){
+                    Controller.changeUpdateText(update,"NOT TEXT");
+                }
                 new BotController().getAnswer(update);
             }
         }
