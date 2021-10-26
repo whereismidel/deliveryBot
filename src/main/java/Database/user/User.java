@@ -9,6 +9,7 @@ public class User {
     private String username;
     private String fullName;
     private String phone;
+    private String email;
     private String cardNumber;
     private int dormitory;
     private int room;
@@ -21,7 +22,7 @@ public class User {
     private int warns;
     private String rate;
     private String stage = "NONE";
-    private String temp;
+    private String temp = "NONE";
 
     public User(){
     }
@@ -91,6 +92,13 @@ public class User {
     }
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getCardNumber() {

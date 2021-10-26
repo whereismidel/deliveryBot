@@ -20,20 +20,13 @@ public class DeliveryBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        new BotController().getAnswer(update);
-        /*BotController BOT = new BotController();
-        User u = new User();
-        org.telegram.telegrambots.meta.api.objects.User m = update.getMessage().getFrom();
-        u.setUserId(m.getId().toString());
-        u.setFirstName(m.getFirstName());
-        u.setUsername(m.getUserName());
-
-        signUpUser(u);
-        System.out.println(getUserById("78794393"));
-        u.setRoom(123);
-        updateUserDB(u);
-        u = getUserById(u.getUserId());
-        System.out.println(u);*/
+        if (update.hasCallbackQuery()){
+            new BotController().getCallbackAnswer(update);
+        }else {
+            if (update.hasMessage()) {
+                new BotController().getAnswer(update);
+            }
+        }
     }
 
 }
@@ -46,7 +39,6 @@ class BotInitialization {
                 botsApi.registerBot(new DeliveryBot()); // Запуск бота.
 
                 System.out.println("SUCCESSFUL CONNECTION WITH THE BOT");
-/*                User.userList = UserController.getUsers();*/
 
                 return;
             } catch (TelegramApiException e) {
