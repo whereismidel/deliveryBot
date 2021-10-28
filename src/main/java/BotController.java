@@ -151,6 +151,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /**
+     * Delete message
+     */
     public void deleteMessage(Message message) {
         DeleteMessage dm = new DeleteMessage();
         dm.setMessageId(message.getMessageId());
@@ -163,6 +166,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /**
+     * Remove keyboard for user
+     */
     public void removeKeyboard(Update update, String text) {
         SendMessage message = new SendMessage();
         ReplyKeyboardRemove rk = new ReplyKeyboardRemove();
@@ -176,15 +182,30 @@ public class BotController extends DeliveryBot {
             e.printStackTrace();
         }
     }
-    /* -------------------------------------------------------------------------------------------------------------- */
-    /* Received message handlers */
 
+    /**
+     * --------------------------------------------------------------------------------------------------------------
+     * --------------------------------------------------------------------------------------------------------------
+     */
+    /* Received message handlers */
     public void getCallbackAnswer(Update update) {
         User user = getUserById(update.getCallbackQuery().getMessage().getChatId().toString());
+        Message msg = new Message();
+        Chat chat = new Chat();
+
+        chat.setId(Long.parseLong(user.getUserId()));
+        msg.setChat(chat);
+        update.setMessage(msg);
+
         String text = update.getCallbackQuery().getData();
 
         Controller.changeUpdateText(update, text);
-        if (user.getStatus().equals("UNREGISTERED")) {
+        if (user.getStatus().equals("UNREGISTERED") || user.getStatus().equals("UPDATE")) {
+            requestRegistrationData(update, user);
+        } else if (user.getStage().equals("GetInfo")) {
+            user.setStage(text);
+            user.setStatus("UPDATE");
+            Controller.changeUpdateText(update, "Регистрация");
             requestRegistrationData(update, user);
         }
 
@@ -198,39 +219,66 @@ public class BotController extends DeliveryBot {
         User user = authUser(update); // User authorization, check if banned then return NULL.
 
         if (user != null) {
+            // Check if the user is registered
             if (user.getStatus().equals("UNREGISTERED")) {
                 requestRegistrationData(update, user);
-            } else if (text.equalsIgnoreCase("меню") || text.equalsIgnoreCase("/menu") || text.equalsIgnoreCase("/start")) {
-                getMenu(update);
-            } else{
-                sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
+                return;
             }
+
+            // Check command /menu
+            switch (text) {
+                case "меню":
+                case "/menu":
+                case "/start":
+                case "Вернуться в меню": {
+                    user.setStatus("ACTIVE");
+                    user.setStage("MENU");
+                    user.setTemp("NONE");
+                    getMenu(update);
+                    updateUserDB(user);
+                    return;
+                }
+            }
+
+            // Check if the user has requested an update / add data
+            if (user.getStatus().equals("UPDATE")) {
+                requestRegistrationData(update, user);
+                return;
+            }
+
+            // Stage handler
+            switch (user.getStage()) {
+                case "NONE": {
+                    // Command handler
+                    switch (text) {
+                        case "/": {
+                            break;
+                        }
+
+                    }
+                    break;
+                }
+                case "MENU": {
+                    menuButtonHandler(update, user);
+                    updateUserDB(user);
+                    break;
+                }
+                case "GetInfo": {
+                    infoButtonHandler(update, user);
+                    break;
+                }
+            }
+
         }
     }
 
-
-    /* -------------------------------------------------------------------------------------------------------------- */
+    /**
+     * --------------------------------------------------------------------------------------------------------------
+     * --------------------------------------------------------------------------------------------------------------
+     */
     /* Methods of messages sent */
-    private void getMenu(Update update) {
-        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-        KeyboardRow kbFRow = new KeyboardRow();
-        KeyboardRow kbSRow = new KeyboardRow();
-        KeyboardRow kbTRow = new KeyboardRow();
-        replyKeyboardMarkup.setSelective(true);
-        replyKeyboardMarkup.setResizeKeyboard(true);
-        replyKeyboardMarkup.setOneTimeKeyboard(true);
-        kbFRow.add("Доставить");
-        kbFRow.add("Заказать");
-        kbSRow.add("Активные доставки");
-        kbSRow.add("Активные заказы");
-        kbTRow.add("Ваши данные");
-        keyboard.add(kbFRow);
-        keyboard.add(kbSRow);
-        keyboard.add(kbTRow);
-        replyKeyboardMarkup.setKeyboard(keyboard);
-
-        sendKeyboard(update, "\u2B07МЕНЮ\u2B07", replyKeyboardMarkup);
+    private boolean isFlood(Date date) {
+        return Controller.getDateDiff(date, new Date(), TimeUnit.MILLISECONDS) < 400;
     }
 
     private User authUser(Update update) {
@@ -273,6 +321,7 @@ public class BotController extends DeliveryBot {
                     }
                     if (user.getWarns() >= 15) {
                         user.setStatus("BANNED");
+                        user.setWarns(0);
                         sendHTMLMessage(update, "Вы были <b>заблокированы</b> за очень частые сообщения.\n\n" +
                                 "Блокировка будет снята в <u><b>начале следующего дня</b></u>, если такое повторится - вы будете <b>заблокированы навсегда</b>.\n\n" +
                                 "<u>Если произошла ошибка</u> - @Midell");
@@ -289,12 +338,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    private boolean isFlood(Date date) {
-        return Controller.getDateDiff(date, new Date(), TimeUnit.MILLISECONDS) < 400;
-    }
-
     private void requestRegistrationData(Update update, User user) {
         String text = update.getMessage().getText();
+        boolean updateData = user.getStatus().equals("UPDATE");
 
         if (user.getStage().contains("Registration")) {
             switch (text) { // Обработка кнопок.
@@ -302,6 +348,7 @@ public class BotController extends DeliveryBot {
                 case "Повторно отправить код": {
                     user.setEmail(user.getEmail().split(":")[0]);
                     user.setStage("Registration(SendEmailConfirmCode)");
+                    removeKeyboard(update, "Генерация нового кода..");
                     Controller.changeUpdateText(update, "null");
                     break;
                 }
@@ -321,9 +368,11 @@ public class BotController extends DeliveryBot {
             case "Регистрация": {
                 switch (user.getStage()) {
                     case "NONE": {
+                        sendHTMLMessage(update, "<b>Если вы сделаете ошибку в ходе регистрации её можно будет исправить позже..</b>");
                         user.setStage("Registration(FullName)");
                         requestRegistrationData(update, user);
-                        break;
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(FullName)": {
                         if (user.getTemp().equals("Регистрация")) {
@@ -331,20 +380,32 @@ public class BotController extends DeliveryBot {
                         } else {
                             if (user.getTemp().matches("^([А-ЯІЇЄ][а-яіїє]*)\\s([А-ЯІЇЄ][а-яіїє]*)((\\s[А-ЯІЇЄ][а-яіїє]*)$|$)")) {
                                 user.setFullName(user.getTemp());
-                                user.setStage("Registration(Phone)");
+                                if (updateData) {
+                                    user.setStage("Registration(Update)");
+                                } else {
+                                    user.setStage("Registration(Phone)");
+                                }
                                 requestRegistrationData(update, user);
+                                return;
                             } else {
                                 sendHTMLMessage(update, "Неверный формат ФИО.\n" +
                                         "Пример: Кіров Сергій Іванович");
                             }
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(Phone)": {
-                        if (user.getTemp().matches("^\\+38\\d{10}$")) {
+                        if (user.getTemp().matches("^(\\+?38)?\\d{10}$")) {
                             user.setPhone(user.getTemp());
-                            user.setStage("Registration(Email)");
+                            if (updateData) {
+                                user.setStage("Registration(Update)");
+                            } else {
+                                user.setStage("Registration(Email)");
+                            }
                             requestRegistrationData(update, user);
+                            return;
                         } else {
                             ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
                             ArrayList<KeyboardRow> keyboard = new ArrayList<>();
@@ -365,27 +426,32 @@ public class BotController extends DeliveryBot {
                             sendKeyboard(update, "Введите ваш номер телефона или нажмите кнопку чтобы отправить контакт.\n\n" +
                                     "Пример формата(+38..): +380681234567", replyKeyboardMarkup);
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(Email)": {
-                        if (user.getTemp().matches("^(\\d)+\\w@stud.nau.edu.ua$") && user.getTemp().length()<45) {
+                        if (user.getTemp().matches("^(\\d)+\\w@stud.nau.edu.ua$") && user.getTemp().length() < 45) {
                             user.setEmail(user.getTemp());
                             user.setStage("Registration(SendEmailConfirmCode)");
                             requestRegistrationData(update, user);
+                            return;
                         } else {
                             sendHTMLMessage(update, "Введите вашу e-mail почту в домене\n" +
                                     "<b>@stud.nau.edu.ua</b>.");
-                            removeKeyboard(update,"На следующем шаге её нужно будет подтвердить...\n\n" +
+                            removeKeyboard(update, "На следующем шаге её нужно будет подтвердить...\n\n" +
                                     "Если почта отсутствует - сообщите @Midell");
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(SendEmailConfirmCode)": {
 
                         sendTextMessage(update, "Отправка письма.\n" +
                                 "Подождите несколько секунд...");
 
-                        if (!(user.getEmail().split(":").length>1)) {
+                        if (!(user.getEmail().split(":").length == 2)) {
                             String verificationCode = Controller.getRandomCode();
                             String email = user.getEmail();
                             user.setEmail(user.getEmail() + ":" + verificationCode);
@@ -393,9 +459,9 @@ public class BotController extends DeliveryBot {
                             Runnable task = () -> {
                                 if (EmailSender.sendMail(email, "Код подтверждения", "Твой код для подтверждения почты: " + verificationCode)) {
                                     System.out.println("\t\t\t  Successful submission.");
-                                    user.setEmail(user.getEmail() + ":" + verificationCode);
                                     user.setStage("Registration(GetEmailConfirmCode)");
                                     requestRegistrationData(update, user);
+                                    return;
                                 } else {
                                     System.out.println("\t\t\t  Submission error.");
                                     sendTextMessage(update, "Ошибка отправки: возможно такой почты не существует");
@@ -403,15 +469,21 @@ public class BotController extends DeliveryBot {
                             };
                             new Thread(task).start();
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(GetEmailConfirmCode)": {
                         if (user.getTemp().equals(user.getEmail().split(":")[1])) {
                             removeKeyboard(update, "Вы подтвердили ваш адрес электронной почты.");
                             user.setEmail(user.getEmail().split(":")[0]);
-                            user.setStage("Registration(Dorm)");
-
+                            if (updateData) {
+                                user.setStage("Registration(Update)");
+                            } else {
+                                user.setStage("Registration(Dorm)");
+                            }
                             requestRegistrationData(update, user);
+                            return;
                         } else {
                             ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
                             ArrayList<KeyboardRow> keyboard = new ArrayList<>();
@@ -431,7 +503,9 @@ public class BotController extends DeliveryBot {
                             sendKeyboard(update, "Введите код, который мы вам отправили на электронную почту, указанную ранее.\n\n" +
                                     "Если код не приходит - @Midell", replyKeyboardMarkup);
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(Dorm)": {
                         ArrayList<Pair<String, String>> inlineTextAndData = new ArrayList<>();
@@ -440,8 +514,11 @@ public class BotController extends DeliveryBot {
                         }
                         int[][] position = new int[][]{{1, 1, 1, 1}, {1, 1, 1, 1, 1}, {1, 1, 1, 1}};
                         sendInlineMessage(update, "\u2B07Выберите номер вашего общежития\u2B07", inlineTextAndData, position);
+
                         user.setStage("Registration(Room)");
-                        break;
+
+                        updateUserDB(user);
+                        return;
                     }
                     case "Registration(Room)": {
                         Message msg = update.getMessage();
@@ -450,10 +527,17 @@ public class BotController extends DeliveryBot {
                         chat.setId(Long.parseLong(user.getUserId()));
                         msg.setChat(chat);
                         update.setMessage(msg);
-                        System.out.println(user.getDormitory());
+
                         if (user.getTemp().contains("DORM")) {
                             text = user.getTemp().replace("DORM", "");
+
                             user.setDormitory(Integer.parseInt(text));
+
+                            if (updateData) {
+                                user.setStage("Registration(Update)");
+                                requestRegistrationData(update, user);
+                                return;
+                            }
                         }
                         if (user.getDormitory() == 0) {
                             sendTextMessage(update, "\u2B06Выберите ваше общежитие\u2B06");
@@ -462,28 +546,54 @@ public class BotController extends DeliveryBot {
 
                         if (user.getTemp().matches("^(\\d{3}+)$")) {
                             user.setRoom(Integer.parseInt(user.getTemp()));
-                            user.setTemp("NONE");
-                            user.setStage("NONE");
-                            user.setStatus("ACTIVE");
-                            sendTextMessage(update, "Вы успешно зарегистрировались.");
-                            getMenu(update);
 
+                            if (updateData) {
+                                user.setStage("Registration(Update)");
+                            } else {
+                                user.setStage("Registration(End)");
+                            }
+
+                            requestRegistrationData(update, user);
+                            return;
                         } else {
                             sendTextMessage(update, "Введите комнату:");
                         }
-                        break;
+
+                        updateUserDB(user);
+                        return;
+                    }
+                    case "Registration(End)": {
+                        user.setStatus("ACTIVE");
+                        user.setStage("MENU");
+                        user.setTemp("NONE");
+                        sendTextMessage(update, "Вы успешно зарегистрировались.");
+                        getMenu(update);
+
+                        updateUserDB(user);
+                        return;
+                    }
+                    case "Registration(Update)": {
+                        user.setTemp("NONE");
+                        user.setStage("GetInfo");
+                        user.setStatus("ACTIVE");
+                        sendTextMessage(update, "Ваши данные обновлены.");
+
+                        updateUserDB(user);
+                        getUserInfo(update, user);
+                        return;
                     }
                 }
-                updateUserDB(user);
-                break;
+                return;
             }
             case "Информация о боте...\nили зачем мне регистрация?": {
                 sendHTMLMessage(update, "Чтобы комфортно пользоваться всеми функциями нам нужны ваши некоторые данные.\n" +
                         "Для обеспечения минимальной гарантии что вы <b>реальный человек</b> и что вашим заказам можно доверять нам необходимо подтверждение <u>вашей личности</u>.\n" +
                         "Дальнейшие инструкции по функциям вы найдете в соответствующих разделах.\n" +
                         "По любым вопросам в работе бота писать - @Midell\n\n" +
-                        "Приятного пользования! \uD83DDE09");
-                break;
+                        "Приятного пользования! \uD83D\uDE09");
+                Controller.changeUpdateText(update, "null");
+                requestRegistrationData(update, user);
+                return;
             }
             default: {
                 ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
@@ -507,4 +617,130 @@ public class BotController extends DeliveryBot {
             }
         }
     }
+
+    private void getMenu(Update update) {
+        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
+        KeyboardRow kbFRow = new KeyboardRow();
+        KeyboardRow kbSRow = new KeyboardRow();
+        KeyboardRow kbTRow = new KeyboardRow();
+        replyKeyboardMarkup.setSelective(true);
+        replyKeyboardMarkup.setResizeKeyboard(true);
+        replyKeyboardMarkup.setOneTimeKeyboard(true);
+        kbFRow.add("Доставить");
+        kbFRow.add("Заказать");
+        kbSRow.add("Активные доставки");
+        kbSRow.add("Активные заказы");
+        kbTRow.add("Ваши данные");
+        keyboard.add(kbFRow);
+        keyboard.add(kbSRow);
+        keyboard.add(kbTRow);
+        replyKeyboardMarkup.setKeyboard(keyboard);
+
+        sendKeyboard(update, "\u2B07МЕНЮ\u2B07", replyKeyboardMarkup);
+    }
+
+    private void menuButtonHandler(Update update, User user) {
+        String text = update.getMessage().getText();
+        switch (text) {
+            case "Заказать": {
+                user.setStage("TODO1");
+                break;
+            }
+            case "Активные заказы": {
+                user.setStage("TODO2");
+                break;
+            }
+            case "Доставить": {
+                user.setStage("TODO3");
+                break;
+            }
+            case "Активные доставки": {
+                user.setStage("TODO4");
+                break;
+            }
+            case "Ваши данные": {
+                user.setStage("GetInfo");
+                getUserInfo(update, user);
+                break;
+            }
+            default: {
+                sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
+            }
+        }
+    }
+
+    private void getUserInfo(Update update, User user) {
+        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
+        KeyboardRow kbFRow = new KeyboardRow();
+        KeyboardRow kbSRow = new KeyboardRow();
+        KeyboardRow kbTRow = new KeyboardRow();
+        replyKeyboardMarkup.setSelective(true);
+        replyKeyboardMarkup.setResizeKeyboard(true);
+        replyKeyboardMarkup.setOneTimeKeyboard(true);
+        kbFRow.add("Мои данные");
+        kbSRow.add("Редактировать данные");
+        kbSRow.add("Удалить все данные");
+        kbTRow.add("Вернуться в меню");
+        keyboard.add(kbFRow);
+        keyboard.add(kbSRow);
+        keyboard.add(kbTRow);
+        replyKeyboardMarkup.setKeyboard(keyboard);
+
+        sendKeyboard(update, "\u2B07Выберите что нужно сделать\u2B07", replyKeyboardMarkup);
+    }
+
+    private void infoButtonHandler(Update update, User user) {
+        String text = update.getMessage().getText();
+        switch (text) {
+            case "Мои данные": {
+                String answer = "<b>ФИО</b>: " + user.getFullName() + "\n" +
+                        "<b>Номер телефона</b>: " + user.getPhone() + "\n" +
+                        "<b>Почта</b>: " + user.getEmail() + "\n" +
+                        "<b>Общежитие</b>: №" + user.getDormitory() + "\n" +
+                        "<b>Комната</b>: " + user.getRoom() + "\n" +
+                        "<b>Предупреждений</b>: " + user.getWarns() / 5 + "/3\n" +
+                        "<b>Подписка на доставку</b>: " + (user.isDeliverySub() ? "активирована" : "неактивна") + "\n" +
+                        (user.getCardNumber() != null ? "<b>Номер карты</b>: " + user.getCardNumber() + "\n" : "") +
+                        (user.getWorkArea() != null ? "<b>Область получения заказов:</b>: " + user.getWorkArea() + "\n" : "") +
+                        (user.getDailyEarn() > 0 ? "<b>За сегодня заработано:</b>: " + user.getDailyEarn() + "\n" : "") +
+                        (user.getTotalEarn() > 0 ? "<b>Заработано в общем:</b>: " + user.getTotalEarn() + "\n" : "") +
+                        (!(user.getRate().split("/")[0].equals("0.0")) ? "<b>Рейтинг доставщика:</b>: " + user.getRate().split("/")[0] + "\n" : "") +
+                        (!(user.getRate().split("/")[1].equals("0.0")) ? "<b>Рейтинг заказчика:</b>: " + user.getRate().split("/")[1] + "\n" : "");
+                sendHTMLMessage(update, answer);
+
+                getUserInfo(update, user);
+                break;
+            }
+            case "Удалить все данные": {
+                user.setStatus("UNREGISTERED");
+                user.setStage("NONE");
+                removeKeyboard(update, "Жаль что вы нас покинули \uD83D\uDE14");
+                requestRegistrationData(update, user);
+                updateUserDB(user);
+                break;
+            }
+            case "Редактировать данные": {
+                ArrayList<Pair<String, String>> inlineTextAndData = new ArrayList<>();
+                inlineTextAndData.add(new Pair<>("ФИО", "Registration(FullName)"));
+                inlineTextAndData.add(new Pair<>("Почта", "Registration(Email)"));
+                inlineTextAndData.add(new Pair<>("Номер телефона", "Registration(Phone)"));
+                inlineTextAndData.add(new Pair<>("Общага", "Registration(Dorm)"));
+                inlineTextAndData.add(new Pair<>("Комната", "Registration(Room)"));
+                inlineTextAndData.add(new Pair<>("Номер карты", "ToDo")); // ToDO
+                inlineTextAndData.add(new Pair<>("Область работы", "ToDo")); // ToDO
+                inlineTextAndData.add(new Pair<>("Подписка на доставку", "ToDo")); // ToDO
+
+                int[][] position = new int[][]{{1, 1}, {1}, {1, 1}, {1, 1}, {1}};
+                sendInlineMessage(update, "\u2B07Выберите что бы вы хотели изменить\u2B07", inlineTextAndData, position);
+
+                break;
+            }
+            default: {
+                sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
+            }
+        }
+    }
+
 }

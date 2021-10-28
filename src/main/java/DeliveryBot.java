@@ -20,6 +20,7 @@ public class DeliveryBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
+        // TODO Вынести список забаненных id -> уменьшить нагрузку на БД.
         if (update.hasCallbackQuery()){
             new BotController().getCallbackAnswer(update);
         }else {
