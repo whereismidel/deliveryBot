@@ -1,4 +1,4 @@
-package Config;
+package midel.Config;
 
 public class EmailConfig {
     public static final String sendFrom = "naudelivery@gmail.com";

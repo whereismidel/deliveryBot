@@ -1,4 +1,4 @@
-package Database.user;
+package midel.Database.user;
 
 public class UserTable {
     public static final String TABLE_NAME = "users";

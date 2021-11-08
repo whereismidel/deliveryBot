@@ -1,4 +1,4 @@
-package Database.user;
+package midel.Database.user;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,12 +7,12 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Date;
 
-import static Database.DataBaseHandler.getDbConnection;
+import static midel.Database.DataBaseHandler.getDbConnection;
 
 public class UserController {
-    public static boolean signUpUser(User user) {
+    public static void signUpUser(User user) {
         String insert = "INSERT INTO " + UserTable.TABLE_NAME + "(" +
-                UserTable.USER_ID + "," + UserTable.STATUS + ","+
+                UserTable.USER_ID + "," + UserTable.STATUS + "," +
                 UserTable.FIRST_NAME + "," + UserTable.USERNAME + "," +
                 UserTable.TIME_LAST_MESSAGE + ")" +
                 "VALUES(?,?,?,?,?)";
@@ -27,14 +27,13 @@ public class UserController {
             st.executeUpdate();
             st.close();
         } catch (SQLIntegrityConstraintViolationException e) {
-            return false;
+            return;
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
-            return false;
+            return;
         }
 
         System.out.println("LOG: New user registered " + user.getFirstName() + "(" + user.getUserId() + ")");
-        return true;
     }
 
     public static User getUserById(String userId) {
@@ -148,6 +147,60 @@ public class UserController {
 
             while (resSet.next()) {
                 users.add(resSet.getString(UserTable.USER_ID) + ":" + resSet.getString(UserTable.WORK_AREA));
+            }
+
+            st.close();
+            resSet.close();
+        } catch (SQLException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        if (users.size() == 0) {
+            return null;
+        } else {
+            return users;
+        }
+    }
+
+    public static ArrayList<User> getUsersWithId(String[] ids) {
+        ArrayList<User> users = new ArrayList<>();
+
+        String select = "SELECT * FROM " + UserTable.TABLE_NAME +
+                " WHERE " + UserTable.USER_ID + " IN (";
+
+        try {
+            for (String id : ids) {
+                select += "\"" + id + "\",";
+            }
+            select = select.substring(0, select.length() - 1) + ")";
+            PreparedStatement st = getDbConnection().prepareStatement(select);
+
+            ResultSet resSet = st.executeQuery();
+
+            while (resSet.next()) {
+                User user = new User();
+                user.setUserId(resSet.getString(UserTable.USER_ID));
+                user.setStatus(resSet.getString(UserTable.STATUS));
+                user.setFirstName(resSet.getString(UserTable.FIRST_NAME));
+                user.setUsername(resSet.getString(UserTable.USERNAME));
+                user.setFullName(resSet.getString(UserTable.FULL_NAME));
+                user.setPhone(resSet.getString(UserTable.PHONE));
+                user.setEmail(resSet.getString(UserTable.EMAIL));
+                user.setCardNumber(resSet.getString(UserTable.CARD_NUMBER));
+                user.setDormitory(resSet.getInt(UserTable.DORMITORY));
+                user.setRoom(resSet.getInt(UserTable.ROOM));
+                user.setWorkArea(resSet.getString(UserTable.WORK_AREA));
+                user.setDeliverySub(resSet.getBoolean(UserTable.DELIVERY_SUB));
+                user.setDailyEarn(resSet.getFloat(UserTable.DAILY_EARN));
+                user.setTotalEarn(resSet.getFloat(UserTable.TOTAL_EARN));
+                user.setTransferTotal(resSet.getFloat(UserTable.TRANSFER_TOTAL));
+                user.setTimeLastMessage((Date) resSet.getObject(UserTable.TIME_LAST_MESSAGE));
+                user.setWarns(resSet.getInt(UserTable.WARNS));
+                user.setRate(resSet.getString(UserTable.RATE));
+                user.setStage(resSet.getString(UserTable.STAGE));
+                user.setTemp(resSet.getString(UserTable.TEMP));
+
+                users.add(user);
             }
 
             st.close();

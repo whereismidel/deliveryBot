@@ -1,4 +1,6 @@
-import Config.BotConfig;
+package midel;
+
+import midel.Config.BotConfig;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -21,16 +23,17 @@ public class DeliveryBot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         // TODO Вынести список забаненных id -> уменьшить нагрузку на БД.
-        if (update.hasCallbackQuery()){
+        if (update.hasCallbackQuery()) {
             new BotController().getCallbackAnswer(update);
-        }else {
-            if (update.hasMessage()) {
-                if (!update.getMessage().hasText()){
-                    Controller.changeUpdateText(update,"NOT TEXT");
-                }
-                new BotController().getAnswer(update);
+        } else if (update.hasMessage()) {
+            if (update.getMessage().hasLocation()) {
+                Controller.changeUpdateText(update, "LOCATION");
+            } else if (!update.getMessage().hasText()) {
+                Controller.changeUpdateText(update, "/menu");
             }
+            new BotController().getAnswer(update);
         }
+
     }
 
 }
@@ -42,7 +45,7 @@ class BotInitialization {
                 TelegramBotsApi botsApi = new TelegramBotsApi(DefaultBotSession.class);
                 botsApi.registerBot(new DeliveryBot()); // Запуск бота.
 
-                System.out.println("SUCCESSFUL CONNECTION WITH THE BOT");
+                System.out.println("SUCCESSFUL CONNECTION");
 
                 return;
             } catch (TelegramApiException e) {

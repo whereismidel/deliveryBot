@@ -1,6 +1,11 @@
-import Database.user.User;
+package midel;
+
+import midel.Database.order.Order;
+import midel.Database.order.OrderController;
+import midel.Database.order.OrderTable;
+import midel.Database.user.User;
 import org.javatuples.Pair;
-import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
+import org.telegram.telegrambots.meta.api.methods.send.SendLocation;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.Chat;
@@ -15,12 +20,11 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.Keyboard
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static Database.user.UserController.*;
+import static midel.Database.user.UserController.*;
 
 public class BotController extends DeliveryBot {
     /* -------------------------------------------------------------------------------------------------------------- */
@@ -60,7 +64,6 @@ public class BotController extends DeliveryBot {
                 InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
                 inlineKeyboardButton.setText(x.getValue0());
                 inlineKeyboardButton.setCallbackData(x.getValue1());
-
                 inlineKeyboardButtons.add(inlineKeyboardButton);
             }
 
@@ -94,6 +97,47 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    public void sendInlineMessages(Update update, String messageText, Object[][] buttons) {
+        if (update.hasMessage() || update.getMessage().hasText()) {
+            SendMessage message = new SendMessage();
+            message.setChatId(update.getMessage().getChatId().toString());
+            message.enableHtml(true);
+
+            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
+
+            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
+
+            for (Object[] rows : buttons) {
+                List<InlineKeyboardButton> keyboardButtonsRow = new ArrayList<>();
+                for (Object button : rows) {
+                    if (button != null) {
+                        if (button.getClass() == Pair.class) {
+                            InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
+                            Pair<?, ?> pair = (Pair<?, ?>) button;
+                            inlineKeyboardButton.setText(String.valueOf(pair.getValue0()));
+                            inlineKeyboardButton.setCallbackData(String.valueOf(pair.getValue1()));
+
+                            keyboardButtonsRow.add(inlineKeyboardButton);
+                        } else if (button.getClass() == InlineKeyboardButton.class) {
+                            keyboardButtonsRow.add((InlineKeyboardButton) button);
+                        }
+                    }
+                }
+                rowList.add(keyboardButtonsRow);
+            }
+
+            inlineKeyboardMarkup.setKeyboard(rowList);
+
+            message.setText(messageText);
+            message.setReplyMarkup(inlineKeyboardMarkup);
+            try {
+                execute(message).getMessageId();
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     /**
      * Sending a "text" message with html markup to the user
      */
@@ -104,6 +148,7 @@ public class BotController extends DeliveryBot {
             message.setText(text);
 
             message.enableHtml(true);
+            message.disableWebPagePreview();
             try {
                 execute(message); // Отправка
             } catch (TelegramApiException e) {
@@ -113,13 +158,36 @@ public class BotController extends DeliveryBot {
     }
 
     /**
-     * Sending keyboard with text as title and replyKeyboardMarkup as keyboard settings
+     * Sending keyboard with text message as title and buttonAndPosition as keyboard buttons with text and position
      */
-    public void sendKeyboard(Update update, String text, ReplyKeyboardMarkup replyKeyboardMarkup) {
+    public void sendKeyboard(Update update, String text, Object[][] buttonAndPosition) {
+        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+        replyKeyboardMarkup.setSelective(true);
+        replyKeyboardMarkup.setResizeKeyboard(true);
+        replyKeyboardMarkup.setOneTimeKeyboard(true);
+
+        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
+
+        for (Object[] buttonRow : buttonAndPosition) {
+            KeyboardRow row = new KeyboardRow();
+            for (Object button : buttonRow) {
+                if (button.getClass() == String.class) {
+                    row.add((String) button);
+                } else if (button.getClass() == KeyboardButton.class) {
+                    row.add((KeyboardButton) button);
+                }
+            }
+            keyboard.add(row);
+        }
+
+        replyKeyboardMarkup.setKeyboard(keyboard);
+
+
         SendMessage message = new SendMessage();
 
         message.setChatId(update.getMessage().getChatId().toString());
         message.setText(text);
+        message.enableHtml(true);
         message.setReplyMarkup(replyKeyboardMarkup);
 
         try {
@@ -129,9 +197,25 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /**
+    public int sendLocation(Update update, String[] coordinates) {
+        if (update.hasMessage() || update.getMessage().hasText()) {
+            SendLocation location = new SendLocation();
+            location.setChatId(update.getMessage().getChatId().toString());
+            location.setLatitude(Double.parseDouble(coordinates[0]));
+            location.setLongitude(Double.parseDouble(coordinates[1]));
+
+            try {
+                return execute(location).getMessageId(); // Отправка
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+        return -1;
+    }
+
+    /*/**
      * Sending poll with options to the user
-     */
+     *//*
     public void sendPoll(Update update, String title, String[] options, boolean multipleAnswers) {
         SendPoll poll = new SendPoll();
         poll.setChatId(update.getMessage().getChatId().toString());
@@ -149,7 +233,7 @@ public class BotController extends DeliveryBot {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
-    }
+    }*/
 
     /**
      * Delete message
@@ -175,6 +259,8 @@ public class BotController extends DeliveryBot {
         rk.setRemoveKeyboard(true);
         message.setReplyMarkup(rk);
         message.setText(text);
+        message.enableHtml(true);
+
         message.setChatId(update.getMessage().getChatId().toString());
         try {
             execute(message);
@@ -202,6 +288,21 @@ public class BotController extends DeliveryBot {
         Controller.changeUpdateText(update, text);
         if (user.getStatus().equals("UNREGISTERED") || user.getStatus().equals("UPDATE")) {
             requestRegistrationData(update, user);
+        } else if (user.getStage().contains("CreateOrder")) {
+            String[] split = text.split("/");
+            Message message = update.getMessage();
+            int id = Integer.parseInt(split[1]);
+            if (id > 0) {
+                message.setMessageId(id);
+                deleteMessage(message);
+            }
+            if (split[0].contains("CreateOrder")) {
+                user.setStage(split[0]);
+                user.setStatus("ACTIVE(ORDER_CONFIRM)");
+            }
+            Controller.changeUpdateText(update, split[0]);
+
+            orderCreationProcess(update, user, new Order(user.getTemp().split("\0")));
         } else if (user.getStage().equals("GetInfo")) {
             user.setStage(text);
             user.setStatus("UPDATE");
@@ -219,52 +320,50 @@ public class BotController extends DeliveryBot {
         User user = authUser(update); // User authorization, check if banned then return NULL.
 
         if (user != null) {
-            // Check if the user is registered
+            // Checking if the user is registered
             if (user.getStatus().equals("UNREGISTERED")) {
                 requestRegistrationData(update, user);
                 return;
             }
 
-            // Check command /menu
+            // Checking command /menu
             switch (text) {
                 case "меню":
                 case "/menu":
                 case "/start":
                 case "Вернуться в меню": {
-                    user.setStatus("ACTIVE");
-                    user.setStage("MENU");
-                    user.setTemp("NONE");
-                    getMenu(update);
-                    updateUserDB(user);
+                    getMenu(update, user);
                     return;
                 }
             }
 
-            // Check if the user has requested an update / add data
+            // Checking if the user has requested an update / add data
             if (user.getStatus().equals("UPDATE")) {
                 requestRegistrationData(update, user);
                 return;
             }
 
+            // Checking if the user creates an order
+            if (user.getStatus().contains("ACTIVE(ORDER")) {
+                orderCreationProcess(update, user, new Order(user.getTemp().split("\0")));
+                return;
+            }
+
             // Stage handler
             switch (user.getStage()) {
-                case "NONE": {
-                    // Command handler
-                    switch (text) {
-                        case "/": {
-                            break;
-                        }
-
-                    }
-                    break;
-                }
                 case "MENU": {
-                    menuButtonHandler(update, user);
+                    if (!menuButtonHandler(update, user)) { // Если это не кнопка меню, то обработать одну из команд.
+                        commandHandler(update);
+                    }
                     updateUserDB(user);
                     break;
                 }
                 case "GetInfo": {
                     infoButtonHandler(update, user);
+                    break;
+                }
+                case "OrderButton": {
+                    orderMenuButtonHandler(update, user);
                     break;
                 }
             }
@@ -407,24 +506,16 @@ public class BotController extends DeliveryBot {
                             requestRegistrationData(update, user);
                             return;
                         } else {
-                            ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-                            ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-                            KeyboardRow kbFRow = new KeyboardRow();
-
-                            replyKeyboardMarkup.setSelective(true);
-                            replyKeyboardMarkup.setResizeKeyboard(true);
-                            replyKeyboardMarkup.setOneTimeKeyboard(true);
-
-                            KeyboardButton keyboardButton = new KeyboardButton();
-                            keyboardButton.setText("Отправить контакт");
-                            keyboardButton.setRequestContact(true);
-
-                            kbFRow.add(keyboardButton);
-                            keyboard.add(kbFRow);
-                            replyKeyboardMarkup.setKeyboard(keyboard);
-
-                            sendKeyboard(update, "Введите ваш номер телефона или нажмите кнопку чтобы отправить контакт.\n\n" +
-                                    "Пример формата(+38..): +380681234567", replyKeyboardMarkup);
+                            KeyboardButton kb = new KeyboardButton();
+                            kb.setRequestContact(true);
+                            kb.setText("Отправить контакт");
+                            sendKeyboard(update,
+                                    "Введите ваш номер телефона или нажмите кнопку чтобы отправить контакт.\n\n" +
+                                            "Пример формата(+38..): +380681234567",
+                                    new Object[][]
+                                            {
+                                                    {kb}
+                                            });
                         }
 
                         updateUserDB(user);
@@ -461,7 +552,6 @@ public class BotController extends DeliveryBot {
                                     System.out.println("\t\t\t  Successful submission.");
                                     user.setStage("Registration(GetEmailConfirmCode)");
                                     requestRegistrationData(update, user);
-                                    return;
                                 } else {
                                     System.out.println("\t\t\t  Submission error.");
                                     sendTextMessage(update, "Ошибка отправки: возможно такой почты не существует");
@@ -469,7 +559,6 @@ public class BotController extends DeliveryBot {
                             };
                             new Thread(task).start();
                         }
-
                         updateUserDB(user);
                         return;
                     }
@@ -485,23 +574,13 @@ public class BotController extends DeliveryBot {
                             requestRegistrationData(update, user);
                             return;
                         } else {
-                            ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-                            ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-                            KeyboardRow kbFRow = new KeyboardRow();
-                            KeyboardRow kbSRow = new KeyboardRow();
-
-                            replyKeyboardMarkup.setSelective(true);
-                            replyKeyboardMarkup.setResizeKeyboard(true);
-                            replyKeyboardMarkup.setOneTimeKeyboard(true);
-
-                            kbFRow.add("Повторно отправить код");
-                            kbSRow.add("Изменить адрес почты");
-                            keyboard.add(kbFRow);
-                            keyboard.add(kbSRow);
-                            replyKeyboardMarkup.setKeyboard(keyboard);
-
-                            sendKeyboard(update, "Введите код, который мы вам отправили на электронную почту, указанную ранее.\n\n" +
-                                    "Если код не приходит - @Midell", replyKeyboardMarkup);
+                            sendKeyboard(update,
+                                    "Введите код, который мы вам <b><u>отправили</u></b> на электронную почту, указанную ранее.\n\n" +
+                                            "Если код не приходит - @Midell",
+                                    new String[][]{
+                                            {"Повторно отправить код"},
+                                            {"Изменить адрес почты"}
+                                    });
                         }
 
                         updateUserDB(user);
@@ -567,7 +646,7 @@ public class BotController extends DeliveryBot {
                         user.setStage("MENU");
                         user.setTemp("NONE");
                         sendTextMessage(update, "Вы успешно зарегистрировались.");
-                        getMenu(update);
+                        getMenu(update, user);
 
                         updateUserDB(user);
                         return;
@@ -579,9 +658,12 @@ public class BotController extends DeliveryBot {
                         sendTextMessage(update, "Ваши данные обновлены.");
 
                         updateUserDB(user);
-                        getUserInfo(update, user);
+                        getUserInfoMenu(update);
                         return;
                     }
+
+                    //ToDo Добавление карты, изменение подписки,
+                    // изменение области работы
                 }
                 return;
             }
@@ -596,72 +678,64 @@ public class BotController extends DeliveryBot {
                 return;
             }
             default: {
-                ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-                ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-                KeyboardRow kbFRow = new KeyboardRow();
-                KeyboardRow kbSRow = new KeyboardRow();
-
-                replyKeyboardMarkup.setSelective(true);
-                replyKeyboardMarkup.setResizeKeyboard(true);
-                replyKeyboardMarkup.setOneTimeKeyboard(true);
-
-                kbFRow.add("Регистрация");
-                kbSRow.add("Информация о боте...\n" +
-                        "или зачем мне регистрация?");
-
-                keyboard.add(kbFRow);
-                keyboard.add(kbSRow);
-                replyKeyboardMarkup.setKeyboard(keyboard);
-
-                sendKeyboard(update, "\u2B07Выберите пункт \"Регистрация\"\u2B07", replyKeyboardMarkup);
+                sendKeyboard(update,
+                        "\u2B07Выберите пункт \"Регистрация\"\u2B07",
+                        new String[][]{
+                                {"Регистрация"},
+                                {"Информация о боте...\n" +
+                                        "или зачем мне регистрация?"}
+                        });
             }
         }
     }
 
-    private void getMenu(Update update) {
-        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-        KeyboardRow kbFRow = new KeyboardRow();
-        KeyboardRow kbSRow = new KeyboardRow();
-        KeyboardRow kbTRow = new KeyboardRow();
-        replyKeyboardMarkup.setSelective(true);
-        replyKeyboardMarkup.setResizeKeyboard(true);
-        replyKeyboardMarkup.setOneTimeKeyboard(true);
-        kbFRow.add("Доставить");
-        kbFRow.add("Заказать");
-        kbSRow.add("Активные доставки");
-        kbSRow.add("Активные заказы");
-        kbTRow.add("Ваши данные");
-        keyboard.add(kbFRow);
-        keyboard.add(kbSRow);
-        keyboard.add(kbTRow);
-        replyKeyboardMarkup.setKeyboard(keyboard);
+    private void getMenu(Update update, User user) {
+        sendKeyboard(update,
+                "\u2B07МЕНЮ\u2B07",
+                new String[][]{
+                        {"Доставить", "Заказать"},
+                        {"Ваши данные"}
+                });
 
-        sendKeyboard(update, "\u2B07МЕНЮ\u2B07", replyKeyboardMarkup);
+        user.setStatus("ACTIVE");
+        user.setStage("MENU");
+        user.setTemp("NONE");
+        updateUserDB(user);
     }
 
-    private void menuButtonHandler(Update update, User user) {
+    private boolean menuButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
             case "Заказать": {
-                user.setStage("TODO1");
-                break;
-            }
-            case "Активные заказы": {
-                user.setStage("TODO2");
+                user.setStage("OrderButton");
+                getOrderMenu(update);
                 break;
             }
             case "Доставить": {
                 user.setStage("TODO3");
                 break;
             }
-            case "Активные доставки": {
-                user.setStage("TODO4");
-                break;
-            }
             case "Ваши данные": {
                 user.setStage("GetInfo");
-                getUserInfo(update, user);
+                getUserInfoMenu(update);
+                break;
+            }
+            default:
+                return false;
+        }
+        return true;
+    }
+
+    private void commandHandler(Update update) {
+        String text = update.getMessage().getText();
+
+        switch (text) {
+            case "/test": {
+                text = "TEST";
+                sendHTMLMessage(update, Controller.replaceLinkOnHyperLink(text));
+                break;
+            }
+            case "": {
                 break;
             }
             default: {
@@ -670,25 +744,14 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    private void getUserInfo(Update update, User user) {
-        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
-        ArrayList<KeyboardRow> keyboard = new ArrayList<>();
-        KeyboardRow kbFRow = new KeyboardRow();
-        KeyboardRow kbSRow = new KeyboardRow();
-        KeyboardRow kbTRow = new KeyboardRow();
-        replyKeyboardMarkup.setSelective(true);
-        replyKeyboardMarkup.setResizeKeyboard(true);
-        replyKeyboardMarkup.setOneTimeKeyboard(true);
-        kbFRow.add("Мои данные");
-        kbSRow.add("Редактировать данные");
-        kbSRow.add("Удалить все данные");
-        kbTRow.add("Вернуться в меню");
-        keyboard.add(kbFRow);
-        keyboard.add(kbSRow);
-        keyboard.add(kbTRow);
-        replyKeyboardMarkup.setKeyboard(keyboard);
-
-        sendKeyboard(update, "\u2B07Выберите что нужно сделать\u2B07", replyKeyboardMarkup);
+    private void getUserInfoMenu(Update update) {
+        sendKeyboard(update,
+                "\u2B07Выберите что нужно сделать\u2B07",
+                new String[][]{
+                        {"Мои данные"},
+                        {"Редактировать данные", "Удалить все данные"},
+                        {"Вернуться в меню"}
+                });
     }
 
     private void infoButtonHandler(Update update, User user) {
@@ -710,7 +773,7 @@ public class BotController extends DeliveryBot {
                         (!(user.getRate().split("/")[1].equals("0.0")) ? "<b>Рейтинг заказчика:</b>: " + user.getRate().split("/")[1] + "\n" : "");
                 sendHTMLMessage(update, answer);
 
-                getUserInfo(update, user);
+                getUserInfoMenu(update);
                 break;
             }
             case "Удалить все данные": {
@@ -743,4 +806,238 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    private void getOrderMenu(Update update) {
+        sendKeyboard(update,
+                "\u2B07Выберите что нужно сделать\u2B07",
+                new String[][]{
+                        {"Новый заказ"},
+                        {"Мои заказы", "Что это за раздел?"},
+                        {"Вернуться в меню"}
+                });
+    }
+
+    private void orderMenuButtonHandler(Update update, User user) {
+        String text = update.getMessage().getText();
+        switch (text) {
+            case "Новый заказ": {
+                user.setStage("CreateOrder(RequestPlacePurchase)");
+                user.setStatus("ACTIVE(ORDER)");
+                orderCreationProcess(update, user, new Order(user.getUserId()));
+                break;
+            }
+            case "Мои заказы": {
+                user.setStage("GetOrders");
+                getUserOrders(update, user);
+                break;
+            }
+            case "Что это за раздел?": {
+                sendHTMLMessage(update, "Тут вы можете сделать заказ."); // ToDo добавить описание
+                getOrderMenu(update);
+                break;
+            }
+            default:
+                sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
+        }
+    }
+
+    private void orderCreationProcess(Update update, User user, Order order) {
+        String text = update.getMessage().getText();
+        switch (user.getStage()) {
+            case "CreateOrder(RequestPlacePurchase)": {
+                sendKeyboard(update, "<u>Напишите</u> место или <u>выберите</u> из доступных ниже <u><b>откуда</b></u> вам нужно что-то доставить..\n\n" +
+                                "Кнопка \"Пропустить\" - не имеет значения.",
+                        new String[][]{{"ПРОПУСТИТЬ", "Вернуться в меню"}, {"АТБ", "Сільпо", "ЕкоМаркет"}, {"Все для дому"}, {"Шаурма у тройки", "Domino`s Пицца"}});
+                user.setStage("CreateOrder(PlacePurchase)");
+                user.setTemp(order.toTempString());
+                updateUserDB(user);
+                break;
+            }
+            case "CreateOrder(PlacePurchase)": {
+                if (text.equalsIgnoreCase("ПРОПУСТИТЬ")) {
+                    order.setPlacePurchase("На ваш выбор");
+                } else {
+                    order.setPlacePurchase(text);
+                }
+                if (user.getStatus().equals("ACTIVE(ORDER_CONFIRM)")) {
+                    user.setStage("CreateOrder(SendReport)");
+                } else {
+                    user.setStage("CreateOrder(RequestText)");
+                }
+                user.setTemp(order.toTempString());
+                orderCreationProcess(update, user, order);
+
+                break;
+            }
+            case "CreateOrder(RequestText)": {
+                removeKeyboard(update, "Бросьте ссылки<b>(начинаются с http(s)://)</b> на товар или <b>напишите</b> в <u>одном сообщении</u> что бы вы хотели заказать..");
+                user.setStage("CreateOrder(WaitText)");
+                updateUserDB(user);
+                break;
+            }
+            case "CreateOrder(WaitText)": {
+                text = Controller.replaceLinkOnHyperLink(text);
+                order.setOrderText(text);
+                if (user.getStatus().equals("ACTIVE(ORDER_CONFIRM)")) {
+                    user.setStage("CreateOrder(SendReport)");
+                } else {
+                    user.setStage("CreateOrder(RequestCost)");
+                }
+                user.setTemp(order.toTempString());
+                orderCreationProcess(update, user, order);
+                break;
+            }
+            case "CreateOrder(RequestCost)": {
+                sendKeyboard(update,
+                        "Введите ориентировочную или точную сумму заказа:",
+                        new Object[][]{
+                                {"Как работает оплата?"}
+                        });
+
+                user.setStage("CreateOrder(WaitCost)");
+                updateUserDB(user);
+                break;
+            }
+            case "CreateOrder(WaitCost)": {
+                if (text.equals("Как работает оплата?")) {
+                    sendHTMLMessage(update, "Чтобы доставщик знал на какую сумму ему рассчитывать вы указываете её на перед.");
+                    sendHTMLMessage(update, "После того как на ваш заказ найдется доставщик - у вас будет возможность связаться с ним и договориться как именно вы оплатите свой заказ.");
+                    sendHTMLMessage(update, "У вас должна быть полная уверенность, что доставщики проверенные - поэтому для них также есть обязательная верификация.");
+                    sendHTMLMessage(update, "По окончанию доставки заказчик будет <b>обязан</b> бросить фото чека/меню/скрин с приложения или другого документа, что подтверждает стоимость покупки.\n" +
+                            "Все чеки будут хранится не меньше 7 дней.");
+                    sendHTMLMessage(update, "<b><u>Внимание:</u> Комиссию за перечисление средств вы полностью берёте на себя. (Извиняемся за временные трудности)</b>");
+                    removeKeyboard(update, "Введите ориентировочную или точную сумму заказа:");
+                    break;
+                }
+                if (Controller.isPositiveNumber(text)) {
+                    order.setCost(Double.parseDouble(text));
+                } else {
+                    sendHTMLMessage(update, "Вы ввели <u>не число, или оно меньше нуля</u>.\n" +
+                            "Пример ввода: <b>157.87</b>");
+                    break;
+                }
+
+                if (user.getStatus().equals("ACTIVE(ORDER_CONFIRM)")) {
+                    user.setStage("CreateOrder(SendReport)");
+                } else {
+                    user.setStage("CreateOrder(DeliveryPlace)");
+                }
+                user.setTemp(order.toTempString());
+                orderCreationProcess(update, user, order);
+                break;
+            }
+            case "CreateOrder(DeliveryPlace)": {
+                switch (text) {
+                    case "LOCATION":
+                        order.setDeliveryPlace("Location:" + update.getMessage().getLocation().getLatitude() + "/" + update.getMessage().getLocation().getLongitude());
+                        user.setStage("CreateOrder(SendReport)");
+                        user.setTemp(order.toTempString());
+                        orderCreationProcess(update, user, order);
+                        break;
+                    case "Отправить точку на карте":
+                        KeyboardButton kb = new KeyboardButton();
+                        kb.setRequestLocation(true);
+                        kb.setText("Отправить моё местоположение");
+                        sendKeyboard(update,
+                                "Выполните <b>одно</b> из указанных действий:\n" +
+                                        "<b>1.</b> Отправьте через меню Telegram <u>точку на карте</u>\n" +
+                                        "<b>2.</b> Нажмите на кнопку чтобы отправить <u>ваше текущее местоположение</u>",
+                                new Object[][]{
+                                        {kb},
+                                        {"Вернуться назад"}
+                                });
+                        break;
+                    default:
+                        if (text.equals("Заберу под " + user.getDormitory() + " общагой") ||
+                                text.equals("Занести в комнату №" + user.getRoom() + " Общежития №" + user.getDormitory() + "\n(Предупреждение: могут не впустить)")) {
+                            order.setDeliveryPlace(text);
+                            user.setStage("CreateOrder(SendReport)");
+                            user.setTemp(order.toTempString());
+                            orderCreationProcess(update, user, order);
+                        } else {
+                            sendKeyboard(update,
+                                    "Выберите куда нужно доставить:",
+                                    new String[][]{
+                                            {"Заберу под " + user.getDormitory() + " общагой"},
+                                            {"Занести в комнату №" + user.getRoom() + " Общежития №" + user.getDormitory() + "\n(Предупреждение: могут не впустить)"},
+                                            {"Отправить точку на карте"}
+                                    });
+                            updateUserDB(user);
+                        }
+                        break;
+                }
+                break;
+            }
+            case "CreateOrder(SendReport)": {
+                int idLocation = -1;
+                text = "Ваш заказ:\n\n" +
+                        "<b>Откуда:</b> " + order.getPlacePurchase() + "\n" +
+                        "<b>Куда:</b> ";
+                if (order.getDeliveryPlace().contains("Location")) {
+                    text += "Точка на карте\n";
+                    idLocation = sendLocation(update, order.getDeliveryPlace().replace("Location:", "").split("/"));
+                } else {
+                    text = text + order.getDeliveryPlace() + "\n";
+                }
+                text += "<b>Что нужно:</b> " + order.getOrderText() + "\n" +
+                        "<b>Ориентировочная стоимость:</b> " + order.getCost() + " грн.";
+
+                InlineKeyboardButton ikb = new InlineKeyboardButton();
+                ikb.setText("Текст заказа");
+                ikb.setCallbackData("CreateOrder(RequestText)/" + idLocation);
+                ikb.setSwitchInlineQueryCurrentChat(order.getOrderText());
+
+                sendInlineMessages(update, text,
+                        new Object[][]
+                                {
+                                        {ikb},
+                                        {new Pair<>("Стоимость", "CreateOrder(RequestCost)/" + idLocation)},
+                                        {new Pair<>("Место покупки", "CreateOrder(RequestPlacePurchase)/" + idLocation)},
+                                        {new Pair<>("Место доставки", "CreateOrder(DeliveryPlace)/" + idLocation)},
+                                        {new Pair<>("Подтвердить", "Подтвердить заказ/" + idLocation), new Pair<>("Отменить", "Вернуться в меню/" + idLocation)}
+                                });
+                user.setStage("CreateOrder(Confirm)");
+                removeKeyboard(update, "Если вы допустили ошибку - нажмите на пункт, который хотите исправить.\n" +
+                        "Подтвердите/измените/отмените заказ.");
+                updateUserDB(user);
+                break;
+            }
+            case "CreateOrder(Confirm)": {
+                switch (text) {
+                    case "Подтвердить заказ": {
+                        order.setDateCreation(new Date());
+                        OrderController.createOrder(order);
+
+                        sendTextMessage(update, "Вы подтвердили заказ, ожидайте пока с вами свяжется доставщик");
+                        getMenu(update, user);
+                        break;
+                    }
+                    case "Вернуться в меню": {
+                        sendTextMessage(update, "Вы отменили заказ.");
+                        getMenu(update, user);
+                        break;
+                    }
+                    default: {
+                        sendTextMessage(update, "Подтвердите/измените/отмените заказ.");
+                    }
+                    break;
+                }
+                break;
+            }
+        }
+    }
+
+    private String getOrderFormat(User user, Order order) {
+        return "";
+    }
+
+    private void getUserOrders(Update update, User user) {
+        if (user.getStage().equals("GetOrders")){
+            System.out.println("HERE");
+            ArrayList<Order> orders = OrderController.getOrdersBy(OrderTable.FROM,user.getUserId());
+            /*ArrayList<User> users = UserController.getUsersWithId(new String[]{"542965633","787943933","397451151"});
+             */for(Order u : orders){
+                System.out.println(u);
+            }
+        }
+    }
 }

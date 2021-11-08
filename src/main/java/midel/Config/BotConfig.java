@@ -1,4 +1,4 @@
-package Config;
+package midel.Config;
 
 public class BotConfig {
     public static final String BOT_USERNAME = "deliveryNAU_bot";

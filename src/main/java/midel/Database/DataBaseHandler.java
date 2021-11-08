@@ -1,10 +1,10 @@
-package Database;
+package midel.Database;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-public class DataBaseHandler extends Config.DataBaseConfig {
+public class DataBaseHandler extends midel.Config.DataBaseConfig {
     static Connection dbConnection;
 
     public static Connection getDbConnection() throws ClassNotFoundException, SQLException {

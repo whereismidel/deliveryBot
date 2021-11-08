@@ -1,4 +1,4 @@
-package Config;
+package midel.Config;
 
 public class DataBaseConfig {
     //jdbc:mysql://localhost:3306/deliveryNAUbot

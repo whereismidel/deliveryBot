@@ -1,4 +1,6 @@
-import Config.EmailConfig;
+package midel;
+
+import midel.Config.EmailConfig;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
