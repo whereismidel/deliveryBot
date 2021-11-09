@@ -162,18 +162,18 @@ public class UserController {
         }
     }
 
-    public static ArrayList<User> getUsersWithId(String[] ids) {
+    public static ArrayList<User> getUsersWithId(ArrayList<String> ids) {
         ArrayList<User> users = new ArrayList<>();
 
-        String select = "SELECT * FROM " + UserTable.TABLE_NAME +
-                " WHERE " + UserTable.USER_ID + " IN (";
+        StringBuilder select = new StringBuilder("SELECT * FROM " + UserTable.TABLE_NAME +
+                " WHERE " + UserTable.USER_ID + " IN (");
 
         try {
             for (String id : ids) {
-                select += "\"" + id + "\",";
+                select.append("\"").append(id).append("\",");
             }
-            select = select.substring(0, select.length() - 1) + ")";
-            PreparedStatement st = getDbConnection().prepareStatement(select);
+            select = new StringBuilder(select.substring(0, select.length() - 1) + ")");
+            PreparedStatement st = getDbConnection().prepareStatement(select.toString());
 
             ResultSet resSet = st.executeQuery();
 

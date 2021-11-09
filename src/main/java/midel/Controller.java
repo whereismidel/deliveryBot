@@ -20,7 +20,7 @@ public class Controller {
     }
 
     public static Date stringToDate(String date) {
-        DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", new Locale("ru"));
+        DateFormat format = new SimpleDateFormat("HH:mm:ss dd-MM-yyyy", new Locale("ru"));
         try {
             return format.parse(date);
         } catch (ParseException e) {
@@ -32,7 +32,7 @@ public class Controller {
         if (date == null) {
             return null;
         } else {
-            DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", new Locale("ru"));
+            DateFormat format = new SimpleDateFormat("HH:mm:ss dd-MM-yyyy", new Locale("ru"));
             return format.format(date);
         }
     }

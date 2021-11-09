@@ -48,56 +48,11 @@ public class BotController extends DeliveryBot {
     }
 
     /**
-     * inlineTextAndData - button text and its callback data received
-     * posButtons - position of the buttons under the message
-     * example: sendInlineMessage(update, "Choose", textAndData, new int[][]{{1,1},{1,0},{1,1}});
+     * buttons - args is a just String as title or button as object.
+     * example: sendInlineMessage(update, "Text", new Object[][]{{new Pair<>("Отменить заказ", "CancelOrder#"}});
+     * example: sendInlineMessage(update, "Text", new Object[][]{{new InlineKeyboardButton()});
      */
-    public void sendInlineMessage(Update update, String messageText,
-                                  ArrayList<Pair<String, String>> inlineTextAndData, int[][] posButtons) {
-        if (update.hasMessage() || update.getMessage().hasText()) {
-            SendMessage message = new SendMessage();
-            message.setChatId(update.getMessage().getChatId().toString());
-
-            InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
-            List<InlineKeyboardButton> inlineKeyboardButtons = new ArrayList<>();
-            for (Pair<String, String> x : inlineTextAndData) {
-                InlineKeyboardButton inlineKeyboardButton = new InlineKeyboardButton();
-                inlineKeyboardButton.setText(x.getValue0());
-                inlineKeyboardButton.setCallbackData(x.getValue1());
-                inlineKeyboardButtons.add(inlineKeyboardButton);
-            }
-
-            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
-
-            for (int[] rows : posButtons) {
-                List<InlineKeyboardButton> keyboardButtonsRow = new ArrayList<>();
-                for (int v : rows) {
-                    if (v == 1) {
-                        if (inlineKeyboardButtons.size() > 0) {
-                            keyboardButtonsRow.add(inlineKeyboardButtons.get(0));
-                            inlineKeyboardButtons.remove(0);
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                rowList.add(keyboardButtonsRow);
-            }
-
-            inlineKeyboardMarkup.setKeyboard(rowList);
-
-            message.setText(messageText);
-            message.setReplyMarkup(inlineKeyboardMarkup);
-
-            try {
-                execute(message);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    public void sendInlineMessages(Update update, String messageText, Object[][] buttons) {
+    public int sendInlineMessages(Update update, String messageText, Object[][] buttons) {
         if (update.hasMessage() || update.getMessage().hasText()) {
             SendMessage message = new SendMessage();
             message.setChatId(update.getMessage().getChatId().toString());
@@ -131,11 +86,13 @@ public class BotController extends DeliveryBot {
             message.setText(messageText);
             message.setReplyMarkup(inlineKeyboardMarkup);
             try {
-                execute(message).getMessageId();
+                return execute(message).getMessageId();
             } catch (TelegramApiException e) {
                 e.printStackTrace();
+
             }
         }
+        return -1;
     }
 
     /**
@@ -197,6 +154,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /**
+     * Sending location
+     */
     public int sendLocation(Update update, String[] coordinates) {
         if (update.hasMessage() || update.getMessage().hasText()) {
             SendLocation location = new SendLocation();
@@ -213,40 +173,20 @@ public class BotController extends DeliveryBot {
         return -1;
     }
 
-    /*/**
-     * Sending poll with options to the user
-     *//*
-    public void sendPoll(Update update, String title, String[] options, boolean multipleAnswers) {
-        SendPoll poll = new SendPoll();
-        poll.setChatId(update.getMessage().getChatId().toString());
-        poll.setQuestion(title);
-
-        ArrayList<String> option = new ArrayList<>(Arrays.asList(options));
-
-        poll.setOptions(option);
-
-        poll.setAllowMultipleAnswers(multipleAnswers);
-        poll.setIsAnonymous(false);
-
-        try {
-            execute(poll);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }*/
-
     /**
      * Delete message
      */
-    public void deleteMessage(Message message) {
+    public void deleteMessage(String chatId, String messageId) {
         DeleteMessage dm = new DeleteMessage();
-        dm.setMessageId(message.getMessageId());
-        dm.setChatId(message.getChatId().toString());
+        if (messageId.equals("")) return;
+        dm.setMessageId(Integer.valueOf(messageId));
+        dm.setChatId(chatId);
 
         try {
             execute(dm);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            System.out.println("LOG: The message does not exist or has already been deleted.");
         }
     }
 
@@ -266,6 +206,7 @@ public class BotController extends DeliveryBot {
             execute(message);
         } catch (TelegramApiException e) {
             e.printStackTrace();
+            System.out.println("LOG: The message does not exist or has already been deleted.");
         }
     }
 
@@ -288,13 +229,13 @@ public class BotController extends DeliveryBot {
         Controller.changeUpdateText(update, text);
         if (user.getStatus().equals("UNREGISTERED") || user.getStatus().equals("UPDATE")) {
             requestRegistrationData(update, user);
-        } else if (user.getStage().contains("CreateOrder")) {
+        } else if (user.getStage().contains("CreateOrder")) { // ЧТО ЭТО БЛЯТЬ ДЕЛАЕТ Я ЕБЛАН
             String[] split = text.split("/");
             Message message = update.getMessage();
             int id = Integer.parseInt(split[1]);
             if (id > 0) {
-                message.setMessageId(id);
-                deleteMessage(message);
+                //message.setMessageId(id);
+                deleteMessage(message.getChatId() + "", id + "");
             }
             if (split[0].contains("CreateOrder")) {
                 user.setStage(split[0]);
@@ -308,9 +249,19 @@ public class BotController extends DeliveryBot {
             user.setStatus("UPDATE");
             Controller.changeUpdateText(update, "Регистрация");
             requestRegistrationData(update, user);
+        } else {
+            if (text.contains("CancelOrder")) {
+                text = text.replace("CancelOrder", "");
+                String[] split = text.split("/");
+                OrderController.removeOrder(split[0]);
+                if (split.length > 1) {
+                    deleteMessage(update.getCallbackQuery().getMessage().getChatId() + "", split[1]);
+                }
+            }
         }
 
-        deleteMessage(update.getCallbackQuery().getMessage());
+
+        deleteMessage(update.getCallbackQuery().getMessage().getChatId() + "", update.getCallbackQuery().getMessage().getMessageId() + "");
     }
 
     public void getAnswer(Update update) {
@@ -366,6 +317,10 @@ public class BotController extends DeliveryBot {
                     orderMenuButtonHandler(update, user);
                     break;
                 }
+                case "GetOrders": {
+                    getUserOrders(update, user);
+                    break;
+                }
             }
 
         }
@@ -376,10 +331,16 @@ public class BotController extends DeliveryBot {
      * --------------------------------------------------------------------------------------------------------------
      */
     /* Methods of messages sent */
+
+    /** Проверяет время от последнего сообщения **/
     private boolean isFlood(Date date) {
         return Controller.getDateDiff(date, new Date(), TimeUnit.MILLISECONDS) < 400;
     }
 
+    /** Авторизирует пользователя,
+     * если не зарегистрирован - перебрасывает на этап регистрации,
+     * если забанен - блокирует обработку сообщений,
+     * если существует - проверяет на флуд, обновляет время последнего сообщения, и пропускает дальше**/
     private User authUser(Update update) {
         Message message = update.getMessage();
         if (message.hasContact()) {
@@ -437,6 +398,7 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /** Запрос данных пользователя, которые могут использоваться в программе.**/
     private void requestRegistrationData(Update update, User user) {
         String text = update.getMessage().getText();
         boolean updateData = user.getStatus().equals("UPDATE");
@@ -587,13 +549,18 @@ public class BotController extends DeliveryBot {
                         return;
                     }
                     case "Registration(Dorm)": {
-                        ArrayList<Pair<String, String>> inlineTextAndData = new ArrayList<>();
+                        ArrayList<Pair<String, String>> inline = new ArrayList<>();
                         for (int i = 1; i <= 13; i++) {
-                            inlineTextAndData.add(new Pair<>("" + i, "DORM" + i));
+                            inline.add(new Pair<>("" + i, "DORM" + i));
                         }
-                        int[][] position = new int[][]{{1, 1, 1, 1}, {1, 1, 1, 1, 1}, {1, 1, 1, 1}};
-                        sendInlineMessage(update, "\u2B07Выберите номер вашего общежития\u2B07", inlineTextAndData, position);
-
+                        int i = 0;
+                        sendInlineMessages(update,
+                                "\u2B07Выберите номер вашего общежития\u2B07",
+                                new Object[][]{
+                                        {inline.get(i++), inline.get(i++), inline.get(i++), inline.get(i++)},
+                                        {inline.get(i++), inline.get(i++), inline.get(i++), inline.get(i++), inline.get(i++)},
+                                        {inline.get(i++), inline.get(i++), inline.get(i++), inline.get(i)}
+                                });
                         user.setStage("Registration(Room)");
 
                         updateUserDB(user);
@@ -689,7 +656,14 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /** Отображение кнопок меню **/
     private void getMenu(Update update, User user) {
+        if (user.getStage().equals("GetOrders")) {
+            // Удаление всех сообщений сделанных заказов, кнопка "Мои заказы"
+            for (String id : user.getTemp().split("/")) {
+                deleteMessage(update.getMessage().getChatId() + "", id);
+            }
+        }
         sendKeyboard(update,
                 "\u2B07МЕНЮ\u2B07",
                 new String[][]{
@@ -703,6 +677,7 @@ public class BotController extends DeliveryBot {
         updateUserDB(user);
     }
 
+    /** Обработка всех кнопок меню **/
     private boolean menuButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -726,13 +701,14 @@ public class BotController extends DeliveryBot {
         return true;
     }
 
+    /** Обработка кастомных команд бота **/
     private void commandHandler(Update update) {
         String text = update.getMessage().getText();
 
         switch (text) {
             case "/test": {
                 text = "TEST";
-                sendHTMLMessage(update, Controller.replaceLinkOnHyperLink(text));
+                sendHTMLMessage(update, "Доставщик: " + "<a href=\"tg://user?id=" + 477743708 + "\">" + "соня" + "</a>");
                 break;
             }
             case "": {
@@ -744,6 +720,7 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /** Отображение кнопок информации о пользователе **/
     private void getUserInfoMenu(Update update) {
         sendKeyboard(update,
                 "\u2B07Выберите что нужно сделать\u2B07",
@@ -754,6 +731,7 @@ public class BotController extends DeliveryBot {
                 });
     }
 
+    /** Обработка кнопок информации о пользователе **/
     private void infoButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -785,19 +763,15 @@ public class BotController extends DeliveryBot {
                 break;
             }
             case "Редактировать данные": {
-                ArrayList<Pair<String, String>> inlineTextAndData = new ArrayList<>();
-                inlineTextAndData.add(new Pair<>("ФИО", "Registration(FullName)"));
-                inlineTextAndData.add(new Pair<>("Почта", "Registration(Email)"));
-                inlineTextAndData.add(new Pair<>("Номер телефона", "Registration(Phone)"));
-                inlineTextAndData.add(new Pair<>("Общага", "Registration(Dorm)"));
-                inlineTextAndData.add(new Pair<>("Комната", "Registration(Room)"));
-                inlineTextAndData.add(new Pair<>("Номер карты", "ToDo")); // ToDO
-                inlineTextAndData.add(new Pair<>("Область работы", "ToDo")); // ToDO
-                inlineTextAndData.add(new Pair<>("Подписка на доставку", "ToDo")); // ToDO
-
-                int[][] position = new int[][]{{1, 1}, {1}, {1, 1}, {1, 1}, {1}};
-                sendInlineMessage(update, "\u2B07Выберите что бы вы хотели изменить\u2B07", inlineTextAndData, position);
-
+                sendInlineMessages(update,
+                        "\u2B07Выберите что бы вы хотели изменить\u2B07",
+                        new Object[][]{
+                                {new Pair<>("ФИО", "Registration(FullName)"), new Pair<>("Почта", "Registration(Email)")},
+                                {new Pair<>("Номер телефона", "Registration(Phone)")},
+                                {new Pair<>("Общага", "Registration(Dorm)"), new Pair<>("Комната", "Registration(Room)")},
+                                {new Pair<>("Номер карты", "ToDo"), new Pair<>("Область работы", "ToDo")}, // ToDo
+                                {new Pair<>("Подписка на доставку", "ToDo")} // ToDo
+                        });
                 break;
             }
             default: {
@@ -806,6 +780,7 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /** Отображение кнопок связанных с заказами **/
     private void getOrderMenu(Update update) {
         sendKeyboard(update,
                 "\u2B07Выберите что нужно сделать\u2B07",
@@ -816,6 +791,7 @@ public class BotController extends DeliveryBot {
                 });
     }
 
+    /** Обработчик кнопок связанных с заказами **/
     private void orderMenuButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -840,6 +816,7 @@ public class BotController extends DeliveryBot {
         }
     }
 
+    /** Создание заказа и добавление его в базу данных **/
     private void orderCreationProcess(Update update, User user, Order order) {
         String text = update.getMessage().getText();
         switch (user.getStage()) {
@@ -1026,18 +1003,80 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    private String getOrderFormat(User user, Order order) {
-        return "";
+    /** Формат отображения заказа для заказчика **/
+    private String getOrderFormat(Order order) {
+        String result = "Заказ <b>№" + order.getOrderId() + "</b>\n";
+        switch (order.getStatus()) {
+            case "AVAILABLE":
+                result += "Состояние: <b>Доступен</b>\n";
+                break;
+            case "BLOCKED":
+                result += "Состояние: <b>Ожидается подтверждения у доставщика</b>\n";
+                break;
+            case "TAKEN":
+                result += "Состояние: <b>В процессе доставки</b>\n";
+                break;
+            case "PAID":
+                result += "Состояние: <b>Оплачен, подготовлен к получению</b>\n";
+                break;
+        }
+        if (order.getExecutor() == null || order.getExecutor().equals("null")) {
+            result += "Доставщик: <b>Отсутствует</b>\n";
+        } else {
+            String[] exe = order.getExecutor().split("/-ToDo-/"); // ToDo
+            result += "Доставщик: <b>" + "<a href=\"tg://user?id=" + exe[0] + "\">" + exe[1] + "</a>" + "</b>\n";
+        }
+        result += "Откуда: <b>" + order.getPlacePurchase() + "</b>\n";
+        if (order.getDeliveryPlace().contains("Location")) {
+            result += "Куда: \u2B06<b>Точка на карте</b>\u2B06\n";
+        } else {
+            result += "Куда: <b>" + order.getDeliveryPlace() + "</b>\n";
+        }
+        result += "Стоимость: <b>" + order.getCost() + "</b>\n";
+        result += "----------\n";
+        result += Controller.dateToString(order.getDateCreation()).replace(" ", "\n") + "\n";
+
+        return result;
     }
 
+    /** Предоставление пользователю информации о его заказах с возможностью их удалить **/
     private void getUserOrders(Update update, User user) {
-        if (user.getStage().equals("GetOrders")){
-            System.out.println("HERE");
-            ArrayList<Order> orders = OrderController.getOrdersBy(OrderTable.FROM,user.getUserId());
-            /*ArrayList<User> users = UserController.getUsersWithId(new String[]{"542965633","787943933","397451151"});
-             */for(Order u : orders){
-                System.out.println(u);
+        String text = update.getMessage().getText();
+        if (user.getStage().equals("GetOrders") && text.equals("Мои заказы")) {
+            ArrayList<Order> orders = OrderController.getOrdersBy(OrderTable.FROM, user.getUserId());
+            if (orders.size() == 0) {
+                sendHTMLMessage(update, "У вас нет активных заказов.");
+                getOrderMenu(update);
+                return;
             }
+            StringBuilder msgId = new StringBuilder();
+            for (Order order : orders) {
+                int location = -1;
+                if (order.getDeliveryPlace().contains("Location")) {
+                    location = sendLocation(update, order.getDeliveryPlace().replace("Location:", "").split("/"));
+                    if (location > 0) {
+                        msgId.append(location).append("/");
+                    }
+                }
+                int id = sendInlineMessages(update,
+                        getOrderFormat(order),
+                        new Object[][]{
+                                // Отменить заказ по кнопке "Мои заказы" если прикреплена локация, сообщение с ней тоже будет удалено
+                                {new Pair<>("Отменить заказ", "CancelOrder" + order.getOrderId() + "/" + (location > 0 ? location : ""))}
+                        });
+                if (id > 0) {
+                    msgId.append(id).append("/");
+                }
+            }
+            user.setTemp(msgId.toString());
+            updateUserDB(user);
+        } else {
+            getMenu(update, user);
         }
+        sendKeyboard(update,
+                "Если хотите удалить заказ нажмите на кнопку под ним. Доставщик будет уведомлен.",
+                new Object[][]{
+                        {"Вернуться в меню"}
+                });
     }
 }
