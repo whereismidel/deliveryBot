@@ -1,0 +1,12 @@
+CREATE TABLE `deliverynau`.`orders` (
+  `order_id` INT NOT NULL AUTO_INCREMENT,
+  `status` VARCHAR(45) NULL,
+  `from` VARCHAR(45) NULL,
+  `executor` VARCHAR(45) NULL,
+  `place_purchase` VARCHAR(45) NULL,
+  `order_text` VARCHAR(255) NULL,
+  `delivery_place` VARCHAR(100) NULL,
+  `cost` DOUBLE NULL DEFAULT 0,
+  `photo_check` TINYINT(1) NULL DEFAULT 0,
+  `date_creation` DATETIME NULL,
+  PRIMARY KEY (`order_id`));
