@@ -37,3 +37,13 @@ ADD COLUMN `email` VARCHAR(45) NULL AFTER `temp`;
 
 ALTER TABLE `deliverynau`.`users` 
 CHANGE COLUMN `temp` `temp` VARCHAR(1000) NULL DEFAULT 'NONE' ;
+
+ALTER TABLE `deliverynau`.`users` 
+ADD COLUMN `balance` DOUBLE NULL DEFAULT '0' AFTER `transfer_total`,
+ADD COLUMN `freeze_balance` DOUBLE NULL DEFAULT '0' AFTER `balance`,
+CHANGE COLUMN `phone` `phone` VARCHAR(45) NULL DEFAULT NULL ,
+CHANGE COLUMN `daily_earn` `daily_earn` DOUBLE NULL DEFAULT '0' ,
+CHANGE COLUMN `warns` `warns` INT NOT NULL DEFAULT '0' ,
+DROP PRIMARY KEY,
+ADD PRIMARY KEY (`user_id`, `warns`);
+;

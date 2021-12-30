@@ -1,10 +1,12 @@
 package midel.Database.user;
 
+import midel.Controller;
+
 import java.util.Date;
 
 public class User {
     private String userId;
-    private String status = "ACTIVE";
+    private String status;
     private String firstName;
     private String username;
     private String fullName;
@@ -18,13 +20,15 @@ public class User {
     private double dailyEarn;
     private double totalEarn;
     private double transferTotal;
+    private double balance;
+    private double freezeBalance;
     private Date timeLastMessage;
     private int warns;
     private String rate;
-    private String stage = "NONE";
-    private String temp = "NONE";
+    private String stage;
+    private String temp;
 
-    public User(){
+    public User() {
     }
 
     @Override
@@ -36,6 +40,7 @@ public class User {
                 ", username='" + username + '\'' +
                 ", fullName='" + fullName + '\'' +
                 ", phone='" + phone + '\'' +
+                ", email='" + email + '\'' +
                 ", cardNumber='" + cardNumber + '\'' +
                 ", dormitory=" + dormitory +
                 ", room=" + room +
@@ -44,6 +49,8 @@ public class User {
                 ", dailyEarn=" + dailyEarn +
                 ", totalEarn=" + totalEarn +
                 ", transferTotal=" + transferTotal +
+                ", balance=" + balance +
+                ", freezeBalance=" + freezeBalance +
                 ", timeLastMessage=" + timeLastMessage +
                 ", warns=" + warns +
                 ", rate='" + rate + '\'' +
@@ -55,6 +62,7 @@ public class User {
     public String getUserId() {
         return userId;
     }
+
     public void setUserId(String userId) {
         this.userId = userId;
     }
@@ -62,6 +70,7 @@ public class User {
     public String getStatus() {
         return status;
     }
+
     public void setStatus(String status) {
         this.status = status;
     }
@@ -69,6 +78,7 @@ public class User {
     public String getFirstName() {
         return firstName;
     }
+
     public void setFirstName(String firstName) {
         this.firstName = firstName;
     }
@@ -76,6 +86,7 @@ public class User {
     public String getUsername() {
         return username;
     }
+
     public void setUsername(String username) {
         this.username = username;
     }
@@ -83,6 +94,7 @@ public class User {
     public String getFullName() {
         return fullName;
     }
+
     public void setFullName(String fullName) {
         this.fullName = fullName;
     }
@@ -90,6 +102,7 @@ public class User {
     public String getPhone() {
         return phone;
     }
+
     public void setPhone(String phone) {
         this.phone = phone;
     }
@@ -97,6 +110,7 @@ public class User {
     public String getEmail() {
         return email;
     }
+
     public void setEmail(String email) {
         this.email = email;
     }
@@ -104,6 +118,7 @@ public class User {
     public String getCardNumber() {
         return cardNumber;
     }
+
     public void setCardNumber(String cardNumber) {
         this.cardNumber = cardNumber;
     }
@@ -111,6 +126,7 @@ public class User {
     public int getDormitory() {
         return dormitory;
     }
+
     public void setDormitory(int dormitory) {
         this.dormitory = dormitory;
     }
@@ -118,6 +134,7 @@ public class User {
     public int getRoom() {
         return room;
     }
+
     public void setRoom(int room) {
         this.room = room;
     }
@@ -125,6 +142,7 @@ public class User {
     public String getWorkArea() {
         return workArea;
     }
+
     public void setWorkArea(String workArea) {
         this.workArea = workArea;
     }
@@ -132,6 +150,7 @@ public class User {
     public boolean isDeliverySub() {
         return deliverySub;
     }
+
     public void setDeliverySub(boolean deliverySub) {
         this.deliverySub = deliverySub;
     }
@@ -139,6 +158,7 @@ public class User {
     public double getDailyEarn() {
         return dailyEarn;
     }
+
     public void setDailyEarn(double dailyEarn) {
         this.dailyEarn = dailyEarn;
     }
@@ -146,6 +166,7 @@ public class User {
     public double getTotalEarn() {
         return totalEarn;
     }
+
     public void setTotalEarn(double totalEarn) {
         this.totalEarn = totalEarn;
     }
@@ -153,13 +174,31 @@ public class User {
     public double getTransferTotal() {
         return transferTotal;
     }
+
     public void setTransferTotal(double transferTotal) {
         this.transferTotal = transferTotal;
+    }
+
+    public double getBalance() {
+        return Controller.round(balance, 2);
+    }
+
+    public void setBalance(Double balance) {
+        this.balance = balance;
+    }
+
+    public double getFreezeBalance() {
+        return Controller.round(freezeBalance, 2);
+    }
+
+    public void setFreezeBalance(Double freezeBalance) {
+        this.freezeBalance = freezeBalance;
     }
 
     public Date getTimeLastMessage() {
         return timeLastMessage;
     }
+
     public void setTimeLastMessage(Date timeLastMessage) {
         this.timeLastMessage = timeLastMessage;
     }
@@ -167,6 +206,7 @@ public class User {
     public int getWarns() {
         return warns;
     }
+
     public void setWarns(int warns) {
         this.warns = warns;
     }
@@ -174,6 +214,7 @@ public class User {
     public String getRate() {
         return rate;
     }
+
     public void setRate(String rate) {
         this.rate = rate;
     }
@@ -181,6 +222,7 @@ public class User {
     public String getStage() {
         return stage;
     }
+
     public void setStage(String stage) {
         this.stage = stage;
     }
@@ -188,6 +230,7 @@ public class User {
     public String getTemp() {
         return temp;
     }
+
     public void setTemp(String temp) {
         this.temp = temp;
     }

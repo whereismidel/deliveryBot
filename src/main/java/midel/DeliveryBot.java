@@ -23,13 +23,22 @@ public class DeliveryBot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         // TODO Вынести список забаненных id -> уменьшить нагрузку на БД.
+        if (update.hasMessage()){
+            if (update.getMessage().getChatId() == -1001578087658L || // Withdraw group
+                    update.getMessage().getChatId() == -1001578087658L) {
+                new BotController().getAnswerAdminChat(update);
+                return;
+            } else if (!update.getMessage().getChat().getType().contains("private")) {
+                return;
+            }
+        }
         if (update.hasCallbackQuery()) {
             new BotController().getCallbackAnswer(update);
         } else if (update.hasMessage()) {
             if (update.getMessage().hasLocation()) {
                 Controller.changeUpdateText(update, "LOCATION");
             } else if (!update.getMessage().hasText()) {
-                Controller.changeUpdateText(update, "/menu");
+                Controller.changeUpdateText(update, "меню");
             }
             new BotController().getAnswer(update);
         }

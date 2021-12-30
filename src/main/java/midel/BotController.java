@@ -8,6 +8,7 @@ import org.javatuples.Pair;
 import org.telegram.telegrambots.meta.api.methods.send.SendLocation;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -22,6 +23,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static midel.Database.user.UserController.*;
@@ -176,10 +178,10 @@ public class BotController extends DeliveryBot {
     /**
      * Delete message
      */
-    public void deleteMessage(String chatId, String messageId) {
+    public void deleteMessage(String chatId, int messageId) {
         DeleteMessage dm = new DeleteMessage();
-        if (messageId.equals("")) return;
-        dm.setMessageId(Integer.valueOf(messageId));
+        if (messageId == -1) return;
+        dm.setMessageId(messageId);
         dm.setChatId(chatId);
 
         try {
@@ -187,6 +189,22 @@ public class BotController extends DeliveryBot {
         } catch (TelegramApiException e) {
             //e.printStackTrace();
             System.out.println("LOG: The message does not exist or has already been deleted.");
+        }
+    }
+
+    /**
+     * Edit message
+     **/
+    public void editMessage(String chatId, int messageId, String newText) {
+        EditMessageText em = new EditMessageText();
+        em.setChatId(chatId);
+        em.setMessageId(messageId);
+        em.setText(newText);
+
+        try {
+            execute(em);
+        } catch (TelegramApiException e) {
+            System.out.println("LOG: Error editing message.");
         }
     }
 
@@ -210,13 +228,28 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /**
+    /*
      * --------------------------------------------------------------------------------------------------------------
      * --------------------------------------------------------------------------------------------------------------
-     */
+     *
     /* Received message handlers */
     public void getCallbackAnswer(Update update) {
-        User user = getUserById(update.getCallbackQuery().getMessage().getChatId().toString());
+        String textInline = update.getCallbackQuery().getData();
+        String textMessage = update.getCallbackQuery().getMessage().getText();
+        String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+        int messageId = update.getCallbackQuery().getMessage().getMessageId();
+        User user = getUserById(chatId);
+        String[] withdrawSplit = textInline.split("/");
+
+        if (user == null) {
+            if (textInline.contains("Withdraw")) {
+                String userId = withdrawSplit[1];
+                user = getUserById(userId);
+            } else {
+                System.out.println("ERROR: NULL EXCEPTION");
+                return;
+            }
+        }
         Message msg = new Message();
         Chat chat = new Chat();
 
@@ -224,44 +257,54 @@ public class BotController extends DeliveryBot {
         msg.setChat(chat);
         update.setMessage(msg);
 
-        String text = update.getCallbackQuery().getData();
+        Controller.changeUpdateText(update, textInline);
+        if (textInline.contains("Withdraw")) {
+            String userId = withdrawSplit[1];
+            Double withdrawAmount = Double.parseDouble(withdrawSplit[2]);
+            if (textInline.contains("Confirm")) {
+                user.setFreezeBalance(user.getFreezeBalance() - withdrawAmount);
+                user.setBalance(user.getBalance() + withdrawAmount);
+                updateUserDB(user);
 
-        Controller.changeUpdateText(update, text);
-        if (user.getStatus().equals("UNREGISTERED") || user.getStatus().equals("UPDATE")) {
-            requestRegistrationData(update, user);
-        } else if (user.getStage().contains("CreateOrder")) { // ЧТО ЭТО БЛЯТЬ ДЕЛАЕТ Я ЕБЛАН
-            String[] split = text.split("/");
-            Message message = update.getMessage();
-            int id = Integer.parseInt(split[1]);
-            if (id > 0) {
-                //message.setMessageId(id);
-                deleteMessage(message.getChatId() + "", id + "");
+                sendHTMLMessage(update, "Ваш запрос на выведение <b>" + withdrawAmount + " грн</b> был <u>одобрен</u>.");
+                editMessage(chatId, messageId, textMessage + "\n\nСтатус: Одобрено");
             }
-            if (split[0].contains("CreateOrder")) {
-                user.setStage(split[0]);
-                user.setStatus("ACTIVE(ORDER_CONFIRM)");
-            }
-            Controller.changeUpdateText(update, split[0]);
-
-            orderCreationProcess(update, user, new Order(user.getTemp().split("\0")));
-        } else if (user.getStage().equals("GetInfo")) {
-            user.setStage(text);
-            user.setStatus("UPDATE");
-            Controller.changeUpdateText(update, "Регистрация");
-            requestRegistrationData(update, user);
         } else {
-            if (text.contains("CancelOrder")) {
-                text = text.replace("CancelOrder", "");
-                String[] split = text.split("/");
-                OrderController.removeOrder(split[0]);
-                if (split.length > 1) {
-                    deleteMessage(update.getCallbackQuery().getMessage().getChatId() + "", split[1]);
+            if (user.getStatus().equals("UNREGISTERED") || user.getStatus().equals("UPDATE")) {
+                requestRegistrationData(update, user);
+            } else if (user.getStage().contains("CreateOrder")) {
+                String[] split = textInline.split("/");
+                Message message = update.getMessage();
+                int id = Integer.parseInt(split[1]);
+                if (id > 0) {
+                    //message.setMessageId(id);
+                    deleteMessage(message.getChatId() + "", id);
+                }
+                if (split[0].contains("CreateOrder")) {
+                    user.setStage(split[0]);
+                    user.setStatus("ACTIVE(ORDER_CONFIRM)");
+                }
+                Controller.changeUpdateText(update, split[0]);
+
+                orderCreationProcess(update, user, new Order(user.getTemp().split("\0")));
+            } else if (user.getStage().equals("GetInfo")) {
+                user.setStage(textInline);
+                user.setStatus("UPDATE");
+                Controller.changeUpdateText(update, "Регистрация");
+                requestRegistrationData(update, user);
+            } else {
+                if (textInline.contains("CancelOrder")) {
+                    textInline = textInline.replace("CancelOrder", "");
+                    String[] split = textInline.split("/");
+                    OrderController.removeOrder(split[0]);
+                    if (split.length > 1) {
+                        deleteMessage(chatId, Objects.equals(split[1], "") ? -1 : Integer.parseInt(split[1]));
+                    }
                 }
             }
+
+            deleteMessage(chatId, messageId);
         }
-
-
-        deleteMessage(update.getCallbackQuery().getMessage().getChatId() + "", update.getCallbackQuery().getMessage().getMessageId() + "");
     }
 
     public void getAnswer(Update update) {
@@ -273,6 +316,10 @@ public class BotController extends DeliveryBot {
         if (user != null) {
             // Checking if the user is registered
             if (user.getStatus().equals("UNREGISTERED")) {
+                if (text.equals("/menu")) {
+                    user.setStage("NONE");
+                    updateUserDB(user);
+                }
                 requestRegistrationData(update, user);
                 return;
             }
@@ -321,26 +368,92 @@ public class BotController extends DeliveryBot {
                     getUserOrders(update, user);
                     break;
                 }
+                case "BalanceMenu": {
+                    balanceMenuHandler(update, user);
+                    break;
+                }
             }
 
         }
     }
 
     /**
-     * --------------------------------------------------------------------------------------------------------------
-     * --------------------------------------------------------------------------------------------------------------
+     *  Processing commands from the administration chat
+     */
+    public void getAnswerAdminChat(Update update) {
+        Message message = update.getMessage();
+        String text = "";
+        String chatId = message.getChatId().toString();
+        int messageId = message.getMessageId();
+        int userId = message.getFrom().getId();
+        int replyMessageId = -1;
+
+        if (message.getReplyToMessage() != null && message.getReplyToMessage().hasReplyMarkup()) {
+            replyMessageId = message.getReplyToMessage().getMessageId();
+        }
+        if (message.hasText()) {
+            text = message.getText();
+            text = text.split("@")[0];
+        }
+
+        /** Decline of withdrawal with reasons **/
+        if (replyMessageId != -1) {
+            String[] withdrawSplit = message.getReplyToMessage().getReplyMarkup().getKeyboard().get(0).get(0).getCallbackData().split("/");
+            String senderId = withdrawSplit[1];
+            double withdrawAmount = Double.parseDouble(withdrawSplit[2]);
+            sendHTMLMessage(Controller.getUpdateWithID(senderId), "Ваш запрос на выведение <b>" + withdrawAmount + " грн</b> был <u>отклонён</u>.\n\nПричина: " + text);
+
+            User user = getUserById(senderId);
+            user.setFreezeBalance(user.getFreezeBalance() - withdrawAmount);
+            user.setBalance(user.getBalance() + withdrawAmount);
+            updateUserDB(user);
+
+            editMessage(chatId, replyMessageId, message.getReplyToMessage().getText() + "\n\nСтатус: Отклонено\nПричина: " + text);
+            deleteMessage(chatId, messageId);
+            return;
+        }
+
+        switch (text) {
+            case "/amenu": {
+                sendHTMLMessage(update, "<b>-------Admin Commands-------</b>\n\n" + "<b>/withdrawQuickAnswer</b> - быстрые ответы для запросов на выведение средств\n\n");
+                break;
+            }
+            case "/withdrawQuickAnswer": {
+                sendKeyboard(Controller.getUpdateWithID(userId + ""), "Быстрые ответы",
+                        new String[][]{
+                                {"Без указания причины"},
+                                {"Несоответствие имени владельца карты и имени в профиле"},
+                                {"Повторная транзакция"},
+                                {"Подозрение в мошенничестве, свяжитесь с @Midell"},
+                                {"Повторите запрос, системная ошибка"}
+                        });
+                break;
+            }
+            case "/test": {
+                sendTextMessage(update, update.getMessage().getReplyToMessage().toString());
+                break;
+            }
+        }
+    }
+    /*
+      --------------------------------------------------------------------------------------------------------------
+      --------------------------------------------------------------------------------------------------------------
      */
     /* Methods of messages sent */
 
-    /** Проверяет время от последнего сообщения **/
+    /**
+     * Проверяет время от последнего сообщения
+     **/
     private boolean isFlood(Date date) {
         return Controller.getDateDiff(date, new Date(), TimeUnit.MILLISECONDS) < 400;
     }
 
-    /** Авторизирует пользователя,
+    /**
+     * Авторизация пользователя,
      * если не зарегистрирован - перебрасывает на этап регистрации,
      * если забанен - блокирует обработку сообщений,
-     * если существует - проверяет на флуд, обновляет время последнего сообщения, и пропускает дальше**/
+     * если существует - проверяет на флуд, обновляет время последнего сообщения, и пропускает дальше
+     **/
     private User authUser(Update update) {
         Message message = update.getMessage();
         if (message.hasContact()) {
@@ -354,7 +467,11 @@ public class BotController extends DeliveryBot {
             user.setUserId(message.getFrom().getId().toString());
             user.setFirstName(message.getFrom().getFirstName());
             user.setUsername(message.getFrom().getUserName());
+            user.setBalance(0d);
+            user.setFreezeBalance(0d);
             user.setTimeLastMessage(new Date());
+            user.setStage("NONE");
+            user.setTemp("NONE");
             user.setStatus("UNREGISTERED");
             signUpUser(user);
 
@@ -398,7 +515,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Запрос данных пользователя, которые могут использоваться в программе.**/
+    /**
+     * Запрос данных пользователя, которые могут использоваться в программе.
+     **/
     private void requestRegistrationData(Update update, User user) {
         String text = update.getMessage().getText();
         boolean updateData = user.getStatus().equals("UPDATE");
@@ -608,6 +727,23 @@ public class BotController extends DeliveryBot {
                         updateUserDB(user);
                         return;
                     }
+                    case "Registration(requestCardNumber)": {
+                        sendTextMessage(update, "Введите номер вашей карты(16 цифр)...");
+
+                        user.setStage("Registration(getCardNumber)");
+                        updateUserDB(user);
+                        return;
+                    }
+                    case "Registration(getCardNumber)": {
+                        if (user.getTemp().matches("\\b\\d{16}\\b")) {
+                            user.setCardNumber(user.getTemp());
+                            user.setStage("Registration(Update)");
+                            requestRegistrationData(update, user);
+                        } else {
+                            sendTextMessage(update, "Некорректно введенный номер карты, повторите попытку(пробелов быть не должно)");
+                        }
+                        return;
+                    }
                     case "Registration(End)": {
                         user.setStatus("ACTIVE");
                         user.setStage("MENU");
@@ -656,19 +792,21 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Отображение кнопок меню **/
+    /**
+     * Отображение кнопок меню
+     **/
     private void getMenu(Update update, User user) {
         if (user.getStage().equals("GetOrders")) {
             // Удаление всех сообщений сделанных заказов, кнопка "Мои заказы"
             for (String id : user.getTemp().split("/")) {
-                deleteMessage(update.getMessage().getChatId() + "", id);
+                deleteMessage(update.getMessage().getChatId() + "", id.equals("") ? -1 : Integer.parseInt(id));
             }
         }
         sendKeyboard(update,
                 "\u2B07МЕНЮ\u2B07",
                 new String[][]{
                         {"Доставить", "Заказать"},
-                        {"Ваши данные"}
+                        {"Данные", "Баланс"}
                 });
 
         user.setStatus("ACTIVE");
@@ -677,7 +815,9 @@ public class BotController extends DeliveryBot {
         updateUserDB(user);
     }
 
-    /** Обработка всех кнопок меню **/
+    /**
+     * Обработка всех кнопок меню
+     **/
     private boolean menuButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -690,9 +830,14 @@ public class BotController extends DeliveryBot {
                 user.setStage("TODO3");
                 break;
             }
-            case "Ваши данные": {
+            case "Данные": {
                 user.setStage("GetInfo");
                 getUserInfoMenu(update);
+                break;
+            }
+            case "Баланс": {
+                user.setStage("BalanceMenu");
+                getBalanceMenu(update, user);
                 break;
             }
             default:
@@ -701,14 +846,16 @@ public class BotController extends DeliveryBot {
         return true;
     }
 
-    /** Обработка кастомных команд бота **/
+    /**
+     * Обработка кастомных команд бота
+     **/
     private void commandHandler(Update update) {
         String text = update.getMessage().getText();
 
         switch (text) {
             case "/test": {
-                text = "TEST";
-                sendHTMLMessage(update, "Доставщик: " + "<a href=\"tg://user?id=" + 477743708 + "\">" + "соня" + "</a>");
+                //sendHTMLMessage(update, "Доставщик: " + "<a href=\"tg://user?id=" + 477743708 + "\">" + "соня" + "</a>");
+                sendTextMessage(update, update.toString());
                 break;
             }
             case "": {
@@ -720,7 +867,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Отображение кнопок информации о пользователе **/
+    /**
+     * Отображение кнопок информации о пользователе
+     **/
     private void getUserInfoMenu(Update update) {
         sendKeyboard(update,
                 "\u2B07Выберите что нужно сделать\u2B07",
@@ -731,7 +880,9 @@ public class BotController extends DeliveryBot {
                 });
     }
 
-    /** Обработка кнопок информации о пользователе **/
+    /**
+     * Обработка кнопок информации о пользователе
+     **/
     private void infoButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -769,7 +920,7 @@ public class BotController extends DeliveryBot {
                                 {new Pair<>("ФИО", "Registration(FullName)"), new Pair<>("Почта", "Registration(Email)")},
                                 {new Pair<>("Номер телефона", "Registration(Phone)")},
                                 {new Pair<>("Общага", "Registration(Dorm)"), new Pair<>("Комната", "Registration(Room)")},
-                                {new Pair<>("Номер карты", "ToDo"), new Pair<>("Область работы", "ToDo")}, // ToDo
+                                {new Pair<>("Номер карты", "Registration(requestCardNumber)"), new Pair<>("Область работы", "ToDo")}, // ToDo
                                 {new Pair<>("Подписка на доставку", "ToDo")} // ToDo
                         });
                 break;
@@ -780,7 +931,99 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Отображение кнопок связанных с заказами **/
+    /**
+     * Отображение кнопок меню баланса
+     **/
+    private void getBalanceMenu(Update update, User user) {
+        sendKeyboard(update,
+                "\u2B07Действия с балансом\u2B07",
+                new String[][]{
+                        {"Текущий баланс: " + user.getBalance() + " грн"},
+                        {"Пополнить баланс", "Вывести средства"},
+                        {"Вернуться в меню"}
+                });
+    }
+
+    /**
+     * Обработка кнопок баланса
+     **/
+    private void balanceMenuHandler(Update update, User user) {
+        String text = update.getMessage().getText();
+        if (text.contains("Текущий баланс")) {
+            text = "Текущий баланс";
+        }
+        switch (text) {
+            case "Текущий баланс": {
+                getBalanceMenu(update, user);
+                break;
+            }
+            case "Пополнить баланс": {
+                sendHTMLMessage(update, "Для пополнения баланса переведите необходимую сумму на этот номер:\n\n" +
+                        "Monobank: <strong>123456789 (Ф. И. О.)</strong>\n\n" +
+                        "<b><u>ОБЯЗАТЕЛЬНО</u></b> укажите в комментариях <b>" + user.getUserId() + "</b>\n\n" +
+                        "<a href = \"https://send.monobank.ua/2ha3VESdPg?t=" + user.getUserId() + "\">Для перевода с монобанка на монобанк</a>");
+                sendHTMLMessage(update, "После того, как перечислите - подождите несколько минут и баланс должен автоматически пополниться.\n" +
+                        "Если через 30 минут на баланс не поступили средства - скрин с оплатой и скрин диалога с ботом @Midell");
+                break;
+            }
+            case "Вывести средства": {
+                sendHTMLMessage(update, "Будьте внимательны - комиссия, которую взимает банк, полностью на вас(больше в разделе \"Часто задаваемые вопросы\").");
+                if (user.getCardNumber() == null) {
+                    sendTextMessage(update, "Ошибка: Для начала вам нужно добавить свою карту.");
+                    user.setStage("Registration(requestCardNumber)");
+                    user.setStatus("UPDATE");
+                    requestRegistrationData(update, user);
+                } else {
+                    sendTextMessage(update, "Введите сумму, которую хотите вывести..");
+                    user.setTemp("Withdraw");
+                }
+                updateUserDB(user);
+                break;
+            }
+            default: {
+                if ("Withdraw".equals(user.getTemp())) {
+                    if (Controller.isPositiveNumber(text)) {
+                        double withdraw = Controller.round(Double.parseDouble(text), 2);
+                        if (withdraw < 25) {
+                            sendTextMessage(update, "Укажите сумму больше 25 гривен..");
+                        } else if (withdraw <= user.getBalance()) {
+                            // ToDo доделать меню баланса и разобраться с апи монобанка, проверить как работают хуки
+                            // ToDo сделать задержку на отправку запросов на пополнение(если хуки не имеют кд)
+                            sendInlineMessages(Controller.getUpdateWithID("-1001578087658"),
+                                    "-------------WITHDRAW REQUEST-------------\n\n" +
+                                            "Пользователь: " + user.getFullName() + "(" + user.getUserId() + ")\n" +
+                                            "Сумма: " + withdraw + " грн.\n" +
+                                            "Номер карты: " + user.getCardNumber() + "\n\n" +
+                                            "Дата создания: " + new Date(),
+                                    new Object[][]{
+                                            {new Pair<>("Одобрить", "Withdraw(Confirm)/" + user.getUserId() + "/" + withdraw)},
+                                    }
+                            );
+
+                            System.out.println("LOG: " + user.getFirstName() + "(" + user.getUserId() + ") has made a withdrawal request (" + withdraw + " грн)");
+                            user.setBalance(Controller.round(user.getBalance() - withdraw, 2));
+                            user.setFreezeBalance(user.getFreezeBalance() + withdraw);
+                            user.setTemp("NONE");
+                            updateUserDB(user);
+
+                            sendTextMessage(update, "Вы успешно сделали запрос. Ожидайте, в течении дня они поступят вам на карту.");
+                            getBalanceMenu(update, user);
+                        } else {
+                            sendTextMessage(update, "На вашем балансе недостаточно средств. Введите сумму поменьше");
+                        }
+                    } else {
+                        sendTextMessage(update, "Введите положительное число..");
+                    }
+                } else {
+                    sendTextMessage(update, "Я не знаю что с этим делать \uD83C\uDF1A\nПопробуйте /menu\n");
+                }
+            }
+        }
+    }
+
+    /**
+     * Отображение кнопок связанных с заказами
+     **/
     private void getOrderMenu(Update update) {
         sendKeyboard(update,
                 "\u2B07Выберите что нужно сделать\u2B07",
@@ -791,7 +1034,9 @@ public class BotController extends DeliveryBot {
                 });
     }
 
-    /** Обработчик кнопок связанных с заказами **/
+    /**
+     * Обработчик кнопок связанных с заказами
+     **/
     private void orderMenuButtonHandler(Update update, User user) {
         String text = update.getMessage().getText();
         switch (text) {
@@ -816,7 +1061,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Создание заказа и добавление его в базу данных **/
+    /**
+     * Создание заказа и добавление его в базу данных
+     **/
     private void orderCreationProcess(Update update, User user, Order order) {
         String text = update.getMessage().getText();
         switch (user.getStage()) {
@@ -1003,7 +1250,9 @@ public class BotController extends DeliveryBot {
         }
     }
 
-    /** Формат отображения заказа для заказчика **/
+    /**
+     * Формат отображения заказа для заказчика
+     **/
     private String getOrderFormat(Order order) {
         String result = "Заказ <b>№" + order.getOrderId() + "</b>\n";
         switch (order.getStatus()) {
@@ -1039,7 +1288,9 @@ public class BotController extends DeliveryBot {
         return result;
     }
 
-    /** Предоставление пользователю информации о его заказах с возможностью их удалить **/
+    /**
+     * Предоставление пользователю информации о его заказах с возможностью их удалить
+     **/
     private void getUserOrders(Update update, User user) {
         String text = update.getMessage().getText();
         if (user.getStage().equals("GetOrders") && text.equals("Мои заказы")) {
@@ -1080,3 +1331,4 @@ public class BotController extends DeliveryBot {
                 });
     }
 }
+// ToDo обнуление предупреждений

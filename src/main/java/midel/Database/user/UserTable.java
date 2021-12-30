@@ -17,6 +17,8 @@ public class UserTable {
     public static final String DAILY_EARN = "daily_earn";
     public static final String TOTAL_EARN = "total_earn";
     public static final String TRANSFER_TOTAL = "transfer_total";
+    public static final String BALANCE = "balance";
+    public static final String FREEZE_BALANCE = "freeze_balance";
     public static final String TIME_LAST_MESSAGE = "time_last_message";
     public static final String WARNS = "warns";
     public static final String RATE = "rate";

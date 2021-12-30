@@ -1,8 +1,11 @@
 package midel;
 
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -54,6 +57,18 @@ public class Controller {
         update.setMessage(message);
     }
 
+    public static Update getUpdateWithID(String id) {
+        Update update = new Update();
+        Message message = new Message();
+        Chat chat = new Chat();
+
+        chat.setId(Long.valueOf(id));
+        message.setChat(chat);
+        update.setMessage(message);
+
+        return update;
+    }
+
     public static String replaceLinkOnHyperLink(String text) {
         //<a href="https://example.com">This is an example</a>
         //<a href=\""+text.substring(m.start(), m.end())+">"+"ССЫЛКА(#"+i+")</a>"
@@ -74,5 +89,10 @@ public class Controller {
 
     public static boolean isPositiveNumber(String str) {
         return str.matches("^\\d+(\\.\\d+)?$");
+    }
+    public static double round(double value, int places) {
+        BigDecimal bd = BigDecimal.valueOf(value);
+        bd = bd.setScale(places, RoundingMode.HALF_UP);
+        return bd.doubleValue();
     }
 }

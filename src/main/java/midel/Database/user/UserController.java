@@ -62,9 +62,11 @@ public class UserController {
                 user.setRoom(resSet.getInt(UserTable.ROOM));
                 user.setWorkArea(resSet.getString(UserTable.WORK_AREA));
                 user.setDeliverySub(resSet.getBoolean(UserTable.DELIVERY_SUB));
-                user.setDailyEarn(resSet.getFloat(UserTable.DAILY_EARN));
-                user.setTotalEarn(resSet.getFloat(UserTable.TOTAL_EARN));
-                user.setTransferTotal(resSet.getFloat(UserTable.TRANSFER_TOTAL));
+                user.setDailyEarn(resSet.getDouble(UserTable.DAILY_EARN));
+                user.setTotalEarn(resSet.getDouble(UserTable.TOTAL_EARN));
+                user.setTransferTotal(resSet.getDouble(UserTable.TRANSFER_TOTAL));
+                user.setBalance(resSet.getDouble(UserTable.BALANCE));
+                user.setFreezeBalance(resSet.getDouble(UserTable.FREEZE_BALANCE));
                 user.setTimeLastMessage((Date) resSet.getObject(UserTable.TIME_LAST_MESSAGE));
                 user.setWarns(resSet.getInt(UserTable.WARNS));
                 user.setRate(resSet.getString(UserTable.RATE));
@@ -96,6 +98,8 @@ public class UserController {
                 UserTable.DAILY_EARN + " = ?," +
                 UserTable.TOTAL_EARN + " = ?," +
                 UserTable.TRANSFER_TOTAL + " = ?," +
+                UserTable.BALANCE + " = ?," +
+                UserTable.FREEZE_BALANCE + " = ?," +
                 UserTable.TIME_LAST_MESSAGE + " = ?," +
                 UserTable.WARNS + " = ?," +
                 UserTable.RATE + " = ?," +
@@ -120,12 +124,14 @@ public class UserController {
             st.setDouble(12, user.getDailyEarn());
             st.setDouble(13, user.getTotalEarn());
             st.setDouble(14, user.getTransferTotal());
-            st.setObject(15, user.getTimeLastMessage());
-            st.setInt(16, user.getWarns());
-            st.setString(17, user.getRate());
-            st.setString(18, user.getStage());
-            st.setString(19, user.getTemp());
-            st.setString(20, user.getUserId());
+            st.setDouble(15, user.getBalance());
+            st.setDouble(16, user.getFreezeBalance());
+            st.setObject(17, user.getTimeLastMessage());
+            st.setInt(18, user.getWarns());
+            st.setString(19, user.getRate());
+            st.setString(20, user.getStage());
+            st.setString(21, user.getTemp());
+            st.setString(22, user.getUserId());
 
             st.executeUpdate();
 
@@ -194,6 +200,8 @@ public class UserController {
                 user.setDailyEarn(resSet.getFloat(UserTable.DAILY_EARN));
                 user.setTotalEarn(resSet.getFloat(UserTable.TOTAL_EARN));
                 user.setTransferTotal(resSet.getFloat(UserTable.TRANSFER_TOTAL));
+                user.setBalance(resSet.getDouble(UserTable.BALANCE));
+                user.setFreezeBalance(resSet.getDouble(UserTable.FREEZE_BALANCE));
                 user.setTimeLastMessage((Date) resSet.getObject(UserTable.TIME_LAST_MESSAGE));
                 user.setWarns(resSet.getInt(UserTable.WARNS));
                 user.setRate(resSet.getString(UserTable.RATE));
